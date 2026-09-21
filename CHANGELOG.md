@@ -3,6 +3,15 @@
 本项目的所有显著变更将记录在此文件。
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-09-21
+
+### Changed
+
+- **侧边栏折叠交互统一锚定左下角**：收起按钮从侧栏 footer 右侧移到左下角（版本号移到右下角），折叠后的悬浮展开把手与收起按钮同心对齐——折叠时把手在按钮原位浮现、翻转为展开钮，展开时从同一位置退出还原，位置不跳变、进出沿左侧同一路径（沿用 sheet 曲线）。顺带修复排查中发现的问题：把手的 Vue 过渡加了 `transition-delay` 会让过渡结束判定失效（动画类滞留、把手一直透明），改为同位置交叉淡变衔接，连续感不变。
+- **版本 1.2.0**：全平台（Tauri / Android / 前端）版本号同步至 1.2.0，Android versionCode 7。
+
+[1.2.0]: https://github.com/mogrowang/collecout/compare/v1.1.0...v1.2.0
+
 ## [1.1.0] - 2026-09-15
 
 ### Fixed

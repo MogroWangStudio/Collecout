@@ -114,7 +114,7 @@ async function closeWindow() {
 
     <template v-else>
       <div class="app-shell">
-        <!-- 桌面侧栏：悬浮圆角卡片，右下角可收起（收起后从标题栏展开） -->
+        <!-- 桌面侧栏：悬浮圆角卡片，左下角收起，折叠后把手在原位接替展开 -->
         <aside v-if="!mobile" class="sidebar" :class="{ collapsed: ui.sidebarCollapsed }">
           <div class="sidebar-inner">
             <nav class="side-nav">
@@ -148,7 +148,6 @@ async function closeWindow() {
             </div>
 
             <footer class="side-foot">
-              <span>v{{ t.version }}</span>
               <button
                 class="icon-btn side-collapse"
                 :aria-label="t.hints.sidebarCollapse"
@@ -157,11 +156,12 @@ async function closeWindow() {
               >
                 <AppIcon name="chevron-left" :size="15" />
               </button>
+              <span>v{{ t.version }}</span>
             </footer>
           </div>
         </aside>
 
-        <!-- 侧边栏折叠后的悬浮展开把手：固定在右下角，桌面与 web 预览通用 -->
+        <!-- 侧边栏折叠后的悬浮展开把手：与收起按钮同心对齐，折叠后按钮"原地翻转"成把手 -->
         <Transition name="fab">
           <button
             v-if="!mobile && ui.sidebarCollapsed"
@@ -242,11 +242,13 @@ async function closeWindow() {
   -webkit-user-select: none;
 }
 
-/* 侧边栏完全折叠后，右下角的悬浮展开把手（web 预览没有标题栏，也能展开） */
+/* 侧边栏折叠后，左下角的悬浮展开把手（web 预览没有标题栏，也能展开）。
+   位置与侧栏内的收起按钮同心：按钮左缘 31px、底缘 23px（10 margin + 1 border + 10/2 padding），
+   34px 把手对齐 24px 按钮中心 → left 26 / bottom 18，折叠时按钮原地"翻转"成把手 */
 .sidebar-fab {
   position: fixed;
-  right: 14px;
-  bottom: 14px;
+  left: 26px;
+  bottom: 18px;
   z-index: 40;
   display: inline-flex;
   align-items: center;
@@ -265,7 +267,7 @@ async function closeWindow() {
   border-color: var(--hairline-strong);
 }
 
-/* 与固定定位共存的进出过渡：从右缘轻位移滑入，同路径退出 */
+/* 与收起按钮的衔接：侧栏开始收起，把手沿左侧路径原位浮现，同路径退出 */
 .fab-enter-active {
   transition: opacity 150ms ease, transform 200ms var(--ease-sheet);
 }
@@ -277,7 +279,7 @@ async function closeWindow() {
 .fab-enter-from,
 .fab-leave-to {
   opacity: 0;
-  transform: translateX(8px);
+  transform: translateX(-8px);
 }
 
 .tb-brand {
@@ -519,7 +521,7 @@ async function closeWindow() {
   color: var(--ink-3);
 }
 
-/* 侧栏右下角的收起按钮 */
+/* 侧栏左下角的收起按钮（折叠后把手在同心位置接替展开） */
 .side-collapse {
   width: 24px;
   height: 24px;

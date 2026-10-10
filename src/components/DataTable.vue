@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Entry, FieldDef } from '../core/models'
+import { t } from '../locales/strings'
+import ImageLightbox from './ImageLightbox.vue'
 
 const props = defineProps<{
   fields: FieldDef[]
@@ -20,16 +22,27 @@ const emit = defineEmits<{
   open: [id: string]
 }>()
 
-const previewUrl = ref<string | null>(null)
+const preview = ref<{ url: string; name: string; from: Element } | null>(null)
 
-/** 条目在某字段列上的单元格图片 */
-function cellImage(entry: Entry, field: FieldDef): string | null {
+/** 条目在某字段列上的单元格图片（含存储名，供预览与无障碍标签用） */
+function cellImageOf(entry: Entry, field: FieldDef): { url: string; name: string } | null {
   for (const img of entry.images ?? []) {
     if (img.fieldId !== field.id) continue
     const url = props.imageUrls?.[img.storedAs]
-    if (url) return url
+    if (url) return { url, name: img.storedAs }
   }
   return null
+}
+
+function cellImage(entry: Entry, field: FieldDef): string | null {
+  return cellImageOf(entry, field)?.url ?? null
+}
+
+/** 点击缩略图：从它所在的位置长出放大预览 */
+function openPreview(entry: Entry, field: FieldDef, e: MouseEvent) {
+  const img = cellImageOf(entry, field)
+  if (!img) return
+  preview.value = { ...img, from: e.currentTarget as Element }
 }
 
 function display(field: FieldDef, entry: Entry): string {
@@ -110,7 +123,8 @@ function onRowClick(entry: Entry, index: number, e: MouseEvent) {
               v-if="cellImage(entry, field)"
               type="button"
               class="cell-image"
-              @click.stop="previewUrl = cellImage(entry, field)"
+              :aria-label="t.common.zoomImage"
+              @click.stop="openPreview(entry, field, $event)"
             >
               <img :src="cellImage(entry, field) ?? ''" alt="" loading="lazy" />
             </button>
@@ -122,13 +136,12 @@ function onRowClick(entry: Entry, index: number, e: MouseEvent) {
       </tbody>
     </table>
 
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="previewUrl" class="img-preview" role="button" @click="previewUrl = null">
-          <img :src="previewUrl" alt="" />
-        </div>
-      </Transition>
-    </Teleport>
+    <ImageLightbox
+      :src="preview?.url ?? null"
+      :name="preview?.name"
+      :from="preview?.from"
+      @close="preview = null"
+    />
   </div>
 </template>
 
@@ -148,6 +161,8 @@ function onRowClick(entry: Entry, index: number, e: MouseEvent) {
   overflow: hidden;
   border: 1px solid var(--hairline);
   background: var(--surface-2);
+  cursor: zoom-in;
+  transition: border-color 120ms ease;
 }
 
 .cell-image img {
@@ -155,30 +170,16 @@ function onRowClick(entry: Entry, index: number, e: MouseEvent) {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 150ms var(--ease-sheet);
 }
 
-.cell-image:hover img {
-  transform: scale(1.08);
+/* 反馈落在按下的一瞬：悬停只提示可点，按下即缩 */
+.cell-image:hover {
+  border-color: var(--ink-3);
 }
 
-.img-preview {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: var(--scrim);
-  display: grid;
-  place-items: center;
-  padding: 32px;
-  cursor: zoom-out;
-}
-
-.img-preview img {
-  max-width: min(920px, 92vw);
-  max-height: 88vh;
-  border-radius: var(--r-m);
-  box-shadow: var(--shadow-2);
-  background: #fff;
+.cell-image:active {
+  transform: scale(0.96);
+  transition: transform 100ms ease-out;
 }
 
 .col-check {

@@ -3,6 +3,25 @@
 本项目的所有显著变更将记录在此文件。
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0] - 2026-10-11
+
+### Fixed
+
+- **修复 Excel「嵌入单元格」图片全部重复第一张**：xlsx 的 `metadata.xml` 里，`futureMetadata`（每块用 `xlrd:rvb@i` 记 rich value 序号）与 `valueMetadata`（每块用 `rc@t/v` 指回 futureMetadata）是**两段**块列表，单元格的 `vm` 指后者。此前把整个文档里的 `bk` 按位置叠成一个列表，futureMetadata 的块排在前面，`vm` 序号整体错位、全部落到第 0 块，于是每个单元格都取到第一张图。现在按 Excel 真实的引用链逐级解析：`metadataTypes` 先认 XLRICHVALUE 类型号 → `valueMetadata` 第 N 块 → 其 `rc@v` 指向的 futureMetadata 块 → 该块的 `xlrd:rvb@i` 得到 rich value 序号 → `rdrichvalue` 的 `_rvRel` 键（按 structure 的键位取对应的 `<v>`）→ `richValueRel` → media。顺带加固：`cm`/`cellMetadata` 与 `vm`/`valueMetadata` 各自成链、缺一份时互为兜底；键名按 `_rvRel` 前缀识别（`_rvRel:LocalImageIdentifier` 与 `_rvRel:LocalImage` 都能认）；任一级取不到索引时跳过该单元格，绝不再回落到第 0 张图。
+- **修复同批导入多个 Excel 时预览缩略图串图**：导入预览的缩略图缓存只按媒体文件名（`image1.png`）做键，同一批里多个文件的重名图片会互相顶替，第二个文件显示第一个文件的图；现在按「文件 id + 文件名」缓存，切换文件也不再复用错图。
+
+### Added
+
+- **图片放大预览统一为一个组件**（`ImageLightbox`）：表格视图、卡片视图、条目详情与导入预览共用同一套浮层。浮层从被点击的缩略图所在方向长出、按同路径缩回（图片在视口正中，缩略图相对视口中心的偏移就是生长方向与起始位移，`transform-origin` 同步锚在缩略图那侧）；Esc 关闭、关闭后把焦点还给原缩略图、`role="dialog"` 与无障碍标签、关闭按钮自带半透明衬底（图片内容不可预知）；尊重「减弱动态效果」（退化为交叉淡变）与「降低透明度」。卡片视图里的图片此前不可点击，现在与其他视图行为一致。
+
+### Changed
+
+- **缩略图反馈改为「按下即缩」**：去掉悬停时把图片本身放大的装饰性缩放（150ms 缓动），悬停只以描边提示可点，按下立即缩到 0.96/0.97——反馈落在按下的一瞬，而不是动画播完之后。
+- **演示样例改为真实 Excel 形状**：`samples/商品图鉴.xlsx` 的「缩略图」工作表此前把元数据写成 `cellMetadata`（简化写法），现改为 Excel 365 真实写出的 `metadataTypes + futureMetadata + valueMetadata` 两段式（structure 也用 `_rvRel:LocalImageIdentifier`），示例本身就能暴露上面那个缺陷；新增 `samples.spec.ts` 把样例与解析器契约锁在一起（浮动图片与嵌入图片各 8 张，逐格对应且字节互不相同）。
+- **版本 1.3.0**：全平台（Tauri / Android / 前端）版本号同步至 1.3.0，Android versionCode 8。
+
+[1.3.0]: https://github.com/mogrowang/collecout/compare/v1.2.0...v1.3.0
+
 ## [1.2.0] - 2026-09-21
 
 ### Changed

@@ -6,6 +6,7 @@ import { t } from '../locales/strings'
 import AppDrawer from './AppDrawer.vue'
 import AppIcon from './AppIcon.vue'
 import FieldInput from './FieldInput.vue'
+import ImageLightbox from './ImageLightbox.vue'
 
 const props = defineProps<{ library: Library; template: Template; /** 常驻抽屉：关闭时为 null */ entry: Entry | null; /** 手动新建模式：不显示删除与来源 */ creating?: boolean }>()
 const emit = defineEmits<{ close: []; save: [entry: Entry]; delete: [id: string] }>()
@@ -26,7 +27,7 @@ watch(
 
 /* 条目图片（Excel 单元格图片）：按字段归属展示，读字节转 blob URL */
 const imageUrls = ref<Record<string, string>>({})
-const previewImage = ref<string | null>(null)
+const preview = ref<{ url: string; name: string; from: Element } | null>(null)
 const urlCache = new Map<string, string>()
 
 const entryImages = computed(() => props.entry?.images ?? [])
@@ -36,6 +37,11 @@ function imagesOf(fieldId: string | undefined): { storedAs: string; url: string 
     .filter((img) => img.fieldId === fieldId)
     .map((img) => ({ storedAs: img.storedAs, url: imageUrls.value[img.storedAs] }))
     .filter((img) => img.url !== undefined)
+}
+
+/** 点击缩略图：从它所在的位置长出放大预览 */
+function openPreview(img: { storedAs: string; url: string }, e: MouseEvent) {
+  preview.value = { url: img.url, name: img.storedAs, from: e.currentTarget as Element }
 }
 
 watch(
@@ -93,7 +99,8 @@ function isTitle(field: Template['fields'][number]): boolean {
             :key="img.storedAs"
             type="button"
             class="image-thumb"
-            @click="previewImage = img.url"
+            :aria-label="t.common.zoomImage"
+            @click="openPreview(img, $event)"
           >
             <img :src="img.url" alt="" />
           </button>
@@ -108,7 +115,8 @@ function isTitle(field: Template['fields'][number]): boolean {
             :key="img.storedAs"
             type="button"
             class="image-thumb"
-            @click="previewImage = img.url"
+            :aria-label="t.common.zoomImage"
+            @click="openPreview(img, $event)"
           >
             <img :src="img.url" alt="" />
           </button>
@@ -130,13 +138,12 @@ function isTitle(field: Template['fields'][number]): boolean {
       <button class="btn btn-primary" @click="save">{{ t.common.save }}</button>
     </template>
 
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="previewImage" class="img-preview" role="button" @click="previewImage = null">
-          <img :src="previewImage" alt="" />
-        </div>
-      </Transition>
-    </Teleport>
+    <ImageLightbox
+      :src="preview?.url ?? null"
+      :name="preview?.name"
+      :from="preview?.from"
+      @close="preview = null"
+    />
   </AppDrawer>
 </template>
 
@@ -159,6 +166,8 @@ function isTitle(field: Template['fields'][number]): boolean {
   overflow: hidden;
   background: var(--surface-2);
   padding: 0;
+  cursor: zoom-in;
+  transition: border-color 120ms ease;
 }
 
 .image-thumb img {
@@ -166,30 +175,16 @@ function isTitle(field: Template['fields'][number]): boolean {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 150ms var(--ease-sheet);
 }
 
-.image-thumb:hover img {
-  transform: scale(1.04);
+/* 反馈落在按下的一瞬 */
+.image-thumb:hover {
+  border-color: var(--ink-3);
 }
 
-.img-preview {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: var(--scrim);
-  display: grid;
-  place-items: center;
-  padding: 32px;
-  cursor: zoom-out;
-}
-
-.img-preview img {
-  max-width: min(920px, 92vw);
-  max-height: 88vh;
-  border-radius: var(--r-m);
-  box-shadow: var(--shadow-2);
-  background: #fff;
+.image-thumb:active {
+  transform: scale(0.97);
+  transition: transform 100ms ease-out;
 }
 
 .source-line {

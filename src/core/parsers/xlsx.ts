@@ -195,8 +195,13 @@ export async function extractSheetImages(bytes: Uint8Array): Promise<ExtractedIm
 
 /**
  * 提取「嵌入单元格的图片」（Excel 365 的 Place in Cell / 插入图片到单元格）：
- * sheet 单元格（vm 属性）→ metadata.xml 的 valueMetadata → rdrichvalue.xml（_localImage）→
- * richValueRel.xml 的 rel → richValueRel rels → media。
+ * sheet 单元格（vm / cm）→ metadata.xml 的 metadataTypes + futureMetadata + valueMetadata
+ * → rdrichvalue.xml（_localImage）→ richValueRel.xml 的 rel → richValueRel rels → media。
+ *
+ * 元数据是两段式：valueMetadata 的第 N 个 bk 只记「rc@t（元数据类型）+ rc@v（futureMetadata 里第几块）」
+ * 指向 futureMetadata 的 bk，真正指向 rich value 的序号（xlrd:rvb@i）存在后者里。
+ * 若把两份 bk 混成一个列表按位置取，vm 序号会整体错位（futureMetadata 在前），
+ * 表现就是所有单元格都取到第一张图。
  */
 export async function extractRichValueImages(bytes: Uint8Array): Promise<ExtractedImage[]> {
   const ctx = await openZipContext(bytes)
@@ -209,18 +214,71 @@ export async function extractRichValueImages(bytes: Uint8Array): Promise<Extract
   const relEntry = entries.get('xl/richData/richValueRel.xml')
   if (!metaEntry || !rvEntry || !relEntry) return []
 
-  // valueMetadata：第 N 个 bk 的 rc@v → rich value 索引（vm 属性 1 起始）
+  // metadataTypes：rc@t 指向的元数据类型号（1 起始），只认 XLRICHVALUE
   const metaDoc = parser.parseFromString(dec.decode(metaEntry.data), 'application/xml')
-  const vmToRv: number[] = tags(metaDoc, 'bk').map((bk) => Number(tags(bk, 'rc')[0]?.getAttribute('v')) || 0)
+  const typeId = tags(metaDoc, 'metadataType').findIndex((m) => (m.getAttribute('name') ?? '') === 'XLRICHVALUE') + 1
 
-  // structure 类型过滤：只认首个键以 _rvRel 开头（即引用媒体关系）的 rich value
+  // futureMetadata/XLRICHVALUE：第 k 个 bk 通过 xlrd:rvb@i 记着它对应的 rich value 序号
+  const futureBk: number[] = []
+  for (const fm of tags(metaDoc, 'futureMetadata')) {
+    if ((fm.getAttribute('name') ?? '') !== 'XLRICHVALUE') continue
+    for (const bk of tags(fm, 'bk')) {
+      const i = tags(bk, 'rvb')[0]?.getAttribute('i')
+      futureBk.push(i === null || i === undefined ? futureBk.length : Math.max(0, Number(i) || 0))
+    }
+  }
+
+  /** 一份 metadata 块列表 → 每块指向的 rich value 序号（-1 = 不是这类 rich value） */
+  const readBlocks = (container: Element | undefined): number[] => {
+    if (!container) return []
+    const out: number[] = []
+    tags(container, 'bk').forEach((bk, at) => {
+      const rc = tags(bk, 'rc')[0]
+      // 没写 rc 时退化为「第几块就是第几个 rich value」
+      if (!rc) {
+        out.push(at)
+        return
+      }
+      const t = rc.getAttribute('t')
+      if (t !== null && typeId > 0 && Number(t) !== typeId) {
+        out.push(-1)
+        return
+      }
+      const ref = Math.max(0, Number(rc.getAttribute('v')) || 0)
+      out.push(futureBk[ref] ?? ref)
+    })
+    return out
+  }
+  // 单元格的 vm 对应 valueMetadata，cm 对应 cellMetadata；只有一份时互为兜底
+  const valueBlocks = readBlocks(tags(metaDoc, 'valueMetadata')[0])
+  const cellBlocks = readBlocks(tags(metaDoc, 'cellMetadata')[0])
+  const richValueOf = (cell: Element): number | null => {
+    const vm = cell.getAttribute('vm')
+    if (vm !== null) {
+      const list = valueBlocks.length > 0 ? valueBlocks : cellBlocks
+      return list[Number(vm) - 1] ?? null
+    }
+    const cm = cell.getAttribute('cm')
+    if (cm !== null) {
+      const list = cellBlocks.length > 0 ? cellBlocks : valueBlocks
+      return list[Number(cm) - 1] ?? null
+    }
+    return null
+  }
+
+  // structure 类型过滤：键列表里第一个以 _rvRel 开头的键（_rvRel:LocalImageIdentifier 等）
+  // 表示该 rich value 引用媒体关系；它的位置也决定要从 rv 的第几个 <v> 取值
   const imageStructures = new Set<number>()
+  const relKeyIndex = new Map<number, number>()
   const rsEntry = entries.get('xl/richData/rdrichvaluestructure.xml')
   if (rsEntry) {
     const rsDoc = parser.parseFromString(dec.decode(rsEntry.data), 'application/xml')
     tags(rsDoc, 's').forEach((s, i) => {
-      const firstKey = tags(s, 'k')[0]?.getAttribute('n') ?? ''
-      if (firstKey.startsWith('_rvRel')) imageStructures.add(i)
+      const keys = tags(s, 'k')
+      const keyAt = keys.findIndex((k) => (k.getAttribute('n') ?? '').startsWith('_rvRel'))
+      if (keyAt === -1) return
+      imageStructures.add(i)
+      relKeyIndex.set(i, keyAt)
     })
   }
 
@@ -230,7 +288,13 @@ export async function extractRichValueImages(bytes: Uint8Array): Promise<Extract
   for (const rv of tags(rvDoc, 'rv')) {
     const s = Number(rv.getAttribute('s')) || 0
     const isImage = imageStructures.size === 0 ? true : imageStructures.has(s)
-    rvToRel.push(isImage ? Number(tags(rv, 'v')[0]?.textContent) || 0 : -1)
+    if (!isImage) {
+      rvToRel.push(-1)
+      continue
+    }
+    const raw = tags(rv, 'v')[relKeyIndex.get(s) ?? 0]?.textContent?.trim() ?? ''
+    const rel = raw === '' ? NaN : Number(raw)
+    rvToRel.push(Number.isInteger(rel) && rel >= 0 ? rel : -1)
   }
 
   // richValueRel：rel 列表（顺序即索引）→ r:id → rels → media
@@ -249,10 +313,10 @@ export async function extractRichValueImages(bytes: Uint8Array): Promise<Extract
     if (!sheetEntry) continue
     const sheetDoc = parser.parseFromString(dec.decode(sheetEntry.data), 'application/xml')
     for (const cell of tags(sheetDoc, 'c')) {
-      const vm = cell.getAttribute('vm')
-      if (!vm) continue
-      const rvIndex = vmToRv[Number(vm) - 1]
+      const rvIndex = richValueOf(cell)
+      if (rvIndex === null) continue
       const relIndex = rvToRel[rvIndex]
+      if (relIndex === undefined || relIndex < 0) continue
       const mediaName = relToMedia[relIndex]
       if (!mediaName) continue
       const media = entries.get(mediaName)

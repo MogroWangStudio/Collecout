@@ -17,6 +17,7 @@ import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import AppSelect from '../components/AppSelect.vue'
 import ConfidenceBadge from '../components/ConfidenceBadge.vue'
+import ImageLightbox from '../components/ImageLightbox.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -83,25 +84,37 @@ const strayImages = computed(() => {
 
 /* ---------- 步骤 4 预览：单元格图片缩略图 ---------- */
 const previewUrls = ref<Record<string, string>>({})
-const previewImg = ref<string | null>(null)
+const preview = ref<{ url: string; name: string; from: Element } | null>(null)
+
+/** 点击缩略图：从它所在的位置长出放大预览 */
+function openPreview(img: { name: string; url: string }, e: MouseEvent) {
+  preview.value = { name: img.name, url: img.url, from: e.currentTarget as Element }
+}
+
+/** 缩略图缓存的键：同一批导入的多个文件都可能有 media/image1.png，只用文件名会串图 */
+const imageKey = (fileId: string, name: string) => `${fileId}|${name}`
 
 watch(
-  () => activeFile.value?.images.map((i) => i.name).join(','),
+  () => {
+    const f = activeFile.value
+    return f ? `${f.id}|${f.images.map((i) => i.name).join(',')}` : ''
+  },
   async () => {
     const f = activeFile.value
     if (!f) return
     for (const img of f.images) {
-      if (previewUrls.value[img.name]) continue
+      const key = imageKey(f.id, img.name)
+      if (previewUrls.value[key]) continue
       const blob = imageBlobOf(img.name, img.bytes)
-      if (blob) previewUrls.value = { ...previewUrls.value, [img.name]: URL.createObjectURL(blob) }
+      if (blob) previewUrls.value = { ...previewUrls.value, [key]: URL.createObjectURL(blob) }
     }
   },
   { immediate: true },
 )
 
 /** 预览表里每条草稿（下标）对应的图片：字段级跟随映射列，其余归入条目级「图片」列 */
-const draftImageMap = computed<Map<number, { fieldId?: string; name: string }[]>>(() => {
-  const map = new Map<number, { fieldId?: string; name: string }[]>()
+const draftImageMap = computed<Map<number, { fieldId?: string; name: string; key: string }[]>>(() => {
+  const map = new Map<number, { fieldId?: string; name: string; key: string }[]>()
   const f = activeFile.value
   if (!f?.doc || f.doc.kind !== 'xlsx' || f.images.length === 0) return map
   const isCol = f.resolvedLayout === 'headerLeft'
@@ -115,7 +128,7 @@ const draftImageMap = computed<Map<number, { fieldId?: string; name: string }[]>
     if (img.sheet !== f.tableLabel) continue
     const di = f.drafts.findIndex((d) => (isCol ? d.sourceCol === img.col : d.sourceRow === img.row))
     if (di === -1) continue
-    const item = { fieldId: isCol ? undefined : fieldByCol.get(img.col), name: img.name }
+    const item = { fieldId: isCol ? undefined : fieldByCol.get(img.col), name: img.name, key: imageKey(f.id, img.name) }
     const list = map.get(di) ?? []
     list.push(item)
     map.set(di, list)
@@ -123,21 +136,21 @@ const draftImageMap = computed<Map<number, { fieldId?: string; name: string }[]>
   return map
 })
 
-function imagesOfDraft(draftIndex: number, fieldId: string): { name: string; url: string }[] {
+function imagesOfDraft(draftIndex: number, fieldId: string): { name: string; key: string; url: string }[] {
   return (draftImageMap.value.get(draftIndex) ?? [])
     .filter((img) => img.fieldId === fieldId)
-    .map((img) => ({ name: img.name, url: previewUrls.value[img.name] }))
+    .map((img) => ({ name: img.name, key: img.key, url: previewUrls.value[img.key] }))
     .filter((img) => img.url !== undefined)
 }
 
 const entryLevelImages = computed(() => {
   const f = activeFile.value
-  if (!f) return new Map<number, { name: string; url: string }[]>()
-  const out = new Map<number, { name: string; url: string }[]>()
+  if (!f) return new Map<number, { name: string; key: string; url: string }[]>()
+  const out = new Map<number, { name: string; key: string; url: string }[]>()
   for (const [di, list] of draftImageMap.value) {
     const urls = list
       .filter((img) => !img.fieldId)
-      .map((img) => ({ name: img.name, url: previewUrls.value[img.name] }))
+      .map((img) => ({ name: img.name, key: img.key, url: previewUrls.value[img.key] }))
       .filter((img) => img.url !== undefined)
     if (urls.length > 0) out.set(di, urls)
   }
@@ -599,10 +612,11 @@ async function finish() {
                   <div v-if="imagesOfDraft(di, field.id).length > 0" class="cell-thumbs">
                     <button
                       v-for="img in imagesOfDraft(di, field.id)"
-                      :key="img.name"
+                      :key="img.key"
                       type="button"
                       class="cell-thumb"
-                      @click="previewImg = img.url"
+                      :aria-label="t.common.zoomImage"
+                      @click="openPreview(img, $event)"
                     >
                       <img :src="img.url" alt="" loading="lazy" />
                     </button>
@@ -612,10 +626,11 @@ async function finish() {
                   <div v-if="entryLevelImages.get(di)?.length" class="cell-thumbs">
                     <button
                       v-for="img in entryLevelImages.get(di)"
-                      :key="img.name"
+                      :key="img.key"
                       type="button"
                       class="cell-thumb"
-                      @click="previewImg = img.url"
+                      :aria-label="t.common.zoomImage"
+                      @click="openPreview(img, $event)"
                     >
                       <img :src="img.url" alt="" loading="lazy" />
                     </button>
@@ -747,13 +762,12 @@ async function finish() {
     </footer>
 
     <!-- 预览图片放大 -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="previewImg" class="img-lightbox" role="button" @click="previewImg = null">
-          <img :src="previewImg" alt="" />
-        </div>
-      </Transition>
-    </Teleport>
+    <ImageLightbox
+      :src="preview?.url ?? null"
+      :name="preview?.name"
+      :from="preview?.from"
+      @close="preview = null"
+    />
 
     <!-- 冲突条目编辑 -->
     <AppModal :open="!!editing" @close="editing = null">
@@ -1121,6 +1135,18 @@ async function finish() {
   overflow: hidden;
   border: 1px solid var(--hairline);
   background: var(--surface-2);
+  cursor: zoom-in;
+  transition: border-color 120ms ease;
+}
+
+/* 反馈落在按下的一瞬：悬停只提示可点，按下即缩 */
+.cell-thumb:hover {
+  border-color: var(--ink-3);
+}
+
+.cell-thumb:active {
+  transform: scale(0.96);
+  transition: transform 100ms ease-out;
 }
 
 .cell-thumb img {
@@ -1128,30 +1154,6 @@ async function finish() {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 150ms var(--ease-sheet);
-}
-
-.cell-thumb:hover img {
-  transform: scale(1.08);
-}
-
-.img-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: var(--scrim);
-  display: grid;
-  place-items: center;
-  padding: 32px;
-  cursor: zoom-out;
-}
-
-.img-lightbox img {
-  max-width: min(920px, 92vw);
-  max-height: 88vh;
-  border-radius: var(--r-m);
-  box-shadow: var(--shadow-2);
-  background: #fff;
 }
 
 .target-card {

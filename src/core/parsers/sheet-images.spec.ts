@@ -216,3 +216,127 @@ describe('xlsx 嵌入单元格图片（richData）提取', () => {
     expect(img.bytes.length).toBe(PNG_BYTES.length)
   })
 })
+
+/** 带可区分尾字节的 PNG（同一张图的字节完全一致，不同图不同） */
+const pngTagged = (tag: number) => Uint8Array.from([...PNG_BYTES, tag])
+
+/**
+ * 真实 Excel 365 写出的「嵌入单元格图片」xlsx 形状：
+ * metadata.xml 里 metadataTypes(XLRICHVALUE) → futureMetadata（每个 bk 带 xlrd:rvb 索引）
+ * → valueMetadata（每个 bk 带 rc t/v）；单元格用 vm 引用 valueMetadata 的第 N 个 bk。
+ * 三张图各自锚定 A2 / A3 / A4。
+ */
+function makeExcelShapeXlsx(): Uint8Array {
+  return zipStore([
+    {
+      name: '[Content_Types].xml',
+      data: enc.encode(
+        `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+          `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+          `<Default Extension="xml" ContentType="application/xml"/>` +
+          `<Default Extension="png" ContentType="image/png"/></Types>`,
+      ),
+    },
+    {
+      name: '_rels/.rels',
+      data: enc.encode(
+        `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+          `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+      ),
+    },
+    {
+      name: 'xl/workbook.xml',
+      data: enc.encode(
+        `<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ` +
+          `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+          `<sheets><sheet name="缩略图" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      ),
+    },
+    {
+      name: 'xl/_rels/workbook.xml.rels',
+      data: enc.encode(
+        `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+          `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
+      ),
+    },
+    {
+      name: 'xl/metadata.xml',
+      data: enc.encode(
+        `<?xml version="1.0"?><metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ` +
+          `xmlns:xlrd="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata" count="3">` +
+          `<metadataTypes count="1"><metadataType name="XLRICHVALUE" minSupportedVersion="120000" copy="1"/></metadataTypes>` +
+          `<futureMetadata name="XLRICHVALUE" count="3">` +
+          [0, 1, 2]
+            .map(
+              (i) =>
+                `<bk><extLst><ext uri="{3e2802c4-18d2-4a3d-9f5e-1a2b3c4d5e6f}"><xlrd:rvb i="${i}"/></ext></extLst></bk>`,
+            )
+            .join('') +
+          `</futureMetadata>` +
+          `<valueMetadata count="3">` +
+          [0, 1, 2].map((i) => `<bk><rc t="1" v="${i}"/></bk>`).join('') +
+          `</valueMetadata></metadata>`,
+      ),
+    },
+    {
+      name: 'xl/richData/rdrichvalue.xml',
+      data: enc.encode(
+        `<?xml version="1.0"?><rvData xmlns="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata" count="3">` +
+          [0, 1, 2]
+            .map((i) => `<rv s="0"><v>${i}</v><v>5</v></rv>`)
+            .join('') +
+          `</rvData>`,
+      ),
+    },
+    {
+      name: 'xl/richData/rdrichvaluestructure.xml',
+      data: enc.encode(
+        `<?xml version="1.0"?><rvStructures xmlns="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata" count="1">` +
+          `<s t="_localImage"><k n="_rvRel:LocalImageIdentifier" t="i"/><k n="CalcOrigin" t="i"/></s></rvStructures>`,
+      ),
+    },
+    {
+      name: 'xl/richData/richValueRel.xml',
+      data: enc.encode(
+        `<?xml version="1.0"?><richValueRels xmlns="http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel" ` +
+          `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+          `<rel r:id="rId1"/><rel r:id="rId2"/><rel r:id="rId3"/></richValueRels>`,
+      ),
+    },
+    {
+      name: 'xl/richData/_rels/richValueRel.xml.rels',
+      data: enc.encode(
+        `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+          `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>` +
+          `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image2.png"/>` +
+          `<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image3.png"/>` +
+          `</Relationships>`,
+      ),
+    },
+    {
+      name: 'xl/worksheets/sheet1.xml',
+      data: enc.encode(
+        `<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+          `<sheetData>` +
+          `<row r="1"><c r="A1" t="inlineStr"><is><t>图片</t></is></c><c r="B1" t="inlineStr"><is><t>名称</t></is></c></row>` +
+          `<row r="2"><c r="A2" vm="1"/><c r="B2" t="inlineStr"><is><t>键盘</t></is></c></row>` +
+          `<row r="3"><c r="A3" vm="2"/><c r="B3" t="inlineStr"><is><t>马克杯</t></is></c></row>` +
+          `<row r="4"><c r="A4" vm="3"/><c r="B4" t="inlineStr"><is><t>长柄伞</t></is></c></row>` +
+          `</sheetData></worksheet>`,
+      ),
+    },
+    { name: 'xl/media/image1.png', data: pngTagged(1) },
+    { name: 'xl/media/image2.png', data: pngTagged(2) },
+    { name: 'xl/media/image3.png', data: pngTagged(3) },
+  ])
+}
+
+describe('xlsx 单元格内图片与单元格一一对应', () => {
+  it('真实 Excel 的 futureMetadata + valueMetadata 链路上，每格取到各自的图片', async () => {
+    const doc = await parseSheet(makeExcelShapeXlsx(), '商品图鉴.xlsx')
+    expect(doc.images?.map((i) => i.name)).toEqual(['image1.png', 'image2.png', 'image3.png'])
+    expect(doc.images?.map((i) => i.row)).toEqual([1, 2, 3])
+    expect(doc.images?.map((i) => i.col)).toEqual([0, 0, 0])
+    expect(doc.images?.map((i) => i.bytes[i.bytes.length - 1])).toEqual([1, 2, 3])
+  })
+})

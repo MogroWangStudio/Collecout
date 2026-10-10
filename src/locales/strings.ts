@@ -2,7 +2,7 @@
 export const t = {
   appName: '萃序',
   appNameEn: 'Collecout',
-  version: '1.2.0',
+  version: '1.3.0',
 
   nav: {
     libraries: '库',
@@ -29,6 +29,8 @@ export const t = {
     add: '添加',
     remove: '移除',
     untitled: '未命名',
+    image: '图片',
+    zoomImage: '放大查看图片',
   },
 
   titlebar: {

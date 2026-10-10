@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { Entry, FieldDef } from '../core/models'
+import { t } from '../locales/strings'
+import ImageLightbox from './ImageLightbox.vue'
 
 const props = defineProps<{
   fields: FieldDef[]
@@ -30,14 +33,27 @@ function value(field: FieldDef, entry: Entry): string {
   return v === undefined ? '' : String(v)
 }
 
-/** 条目在某字段上的单元格图片 */
-function cellImage(field: FieldDef, entry: Entry): string | null {
+const preview = ref<{ url: string; name: string; from: Element } | null>(null)
+
+/** 条目在某字段上的单元格图片（含存储名，供预览与无障碍标签用） */
+function cellImageOf(field: FieldDef, entry: Entry): { url: string; name: string } | null {
   for (const img of entry.images ?? []) {
     if (img.fieldId !== field.id) continue
     const url = props.imageUrls?.[img.storedAs]
-    if (url) return url
+    if (url) return { url, name: img.storedAs }
   }
   return null
+}
+
+function cellImage(field: FieldDef, entry: Entry): string | null {
+  return cellImageOf(field, entry)?.url ?? null
+}
+
+/** 点击卡片里的图片：从它所在的位置长出放大预览（不触发卡片的打开详情） */
+function openPreview(field: FieldDef, entry: Entry, e: MouseEvent) {
+  const img = cellImageOf(field, entry)
+  if (!img) return
+  preview.value = { ...img, from: e.currentTarget as Element }
 }
 
 /** 卡片点击：多选模式下切换选中（支持 Shift / Ctrl），否则打开条目详情 */
@@ -84,7 +100,16 @@ function onCheck(entry: Entry, index: number, e: Event) {
         <template v-for="field in detailFields()" :key="field.id">
           <div v-if="cellImage(field, entry)" class="card-row">
             <dt>{{ field.name }}</dt>
-            <dd><img class="card-image" :src="cellImage(field, entry) ?? ''" alt="" loading="lazy" /></dd>
+            <dd>
+              <button
+                type="button"
+                class="card-image"
+                :aria-label="t.common.zoomImage"
+                @click.stop="openPreview(field, entry, $event)"
+              >
+                <img :src="cellImage(field, entry) ?? ''" alt="" loading="lazy" />
+              </button>
+            </dd>
           </div>
           <div v-else-if="value(field, entry) !== ''" class="card-row">
             <dt>{{ field.name }}</dt>
@@ -96,6 +121,13 @@ function onCheck(entry: Entry, index: number, e: Event) {
         </template>
       </dl>
     </article>
+
+    <ImageLightbox
+      :src="preview?.url ?? null"
+      :name="preview?.name"
+      :from="preview?.from"
+      @close="preview = null"
+    />
   </div>
 </template>
 
@@ -188,9 +220,30 @@ function onCheck(entry: Entry, index: number, e: Event) {
 .card-image {
   max-height: 72px;
   max-width: 100%;
+  padding: 0;
   border-radius: var(--r-s);
   border: 1px solid var(--hairline);
   display: block;
+  overflow: hidden;
+  background: var(--surface-2);
+  cursor: zoom-in;
+  transition: border-color 120ms ease;
+}
+
+.card-image img {
+  display: block;
+  max-height: 70px;
+  max-width: 100%;
   object-fit: cover;
+}
+
+/* 反馈落在按下的一瞬 */
+.card-image:hover {
+  border-color: var(--ink-3);
+}
+
+.card-image:active {
+  transform: scale(0.97);
+  transition: transform 100ms ease-out;
 }
 </style>

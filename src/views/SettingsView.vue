@@ -100,6 +100,66 @@ async function onScaleCommit() {
   await settings.set({ fontScale: fontScaleDraft.value })
 }
 
+/* ---------- 启动动画 ---------- */
+const splashOptions = [
+  { value: 'zoom', label: t.settings.splashZoom },
+  { value: 'shrink', label: t.settings.splashShrink },
+  { value: 'slide', label: t.settings.splashSlide },
+  { value: 'fade', label: t.settings.splashFade },
+]
+
+const SPLASH_DUR_MIN = 0.6
+const SPLASH_DUR_MAX = 3
+const SPLASH_DUR_STEP = 0.1
+
+const splashDurDraft = ref(settings.settings.splashDuration ?? 1.4)
+
+/** 已填充轨道的比例（0–100%），驱动滑块的 accent 填充长度 */
+const splashFillPct = computed(
+  () => `${((splashDurDraft.value - SPLASH_DUR_MIN) / (SPLASH_DUR_MAX - SPLASH_DUR_MIN)) * 100}%`,
+)
+
+async function onSplashDurCommit() {
+  await settings.set({ splashDuration: splashDurDraft.value })
+}
+
+/* 预览：临时插入与启动层同构的浮层，按当前设置完整重播入场 → 停留 → 退场 */
+const splashPreviewing = ref(false)
+
+function playSplashPreview() {
+  if (splashPreviewing.value) return
+  splashPreviewing.value = true
+  const el = document.createElement('div')
+  el.className = 'splash-preview'
+  el.setAttribute('aria-hidden', 'true')
+  // 底色跟随已解析的主题，与启动层同一套深色底
+  el.style.background = document.documentElement.dataset.theme === 'dark' ? '#1b1b1d' : '#ffffff'
+  const img = document.createElement('img')
+  img.src = '/icon.svg'
+  img.alt = ''
+  el.appendChild(img)
+  document.body.appendChild(el)
+
+  const preset = settings.settings.splashAnimation
+  setTimeout(() => {
+    el.classList.add('leaving')
+    if (preset !== 'zoom') el.classList.add(preset)
+    const onEnd = (e: AnimationEvent) => {
+      // 只认层自身的退场动画结束（img 的入场动画结束也会冒泡到这里）
+      if (e.target !== el) return
+      el.removeEventListener('animationend', onEnd)
+      el.remove()
+      splashPreviewing.value = false
+    }
+    el.addEventListener('animationend', onEnd)
+    // 动画事件丢失时兜底清除（最长退场 500ms）
+    setTimeout(() => {
+      el.remove()
+      splashPreviewing.value = false
+    }, 1100)
+  }, (settings.settings.splashDuration ?? 1.4) * 1000)
+}
+
 const formatOptions = [
   { id: 'markdown', label: 'Markdown' },
   { id: 'text', label: t.exportDialog.fmtText },
@@ -206,6 +266,39 @@ async function applyNewRoot(dir: string | null) {
         </button>
       </div>
       <p class="hint row-note">{{ t.settings.titlebarHintsDesc }}</p>
+      <div class="row">
+        <span>{{ t.settings.splashAnimation }}</span>
+        <AppSelect
+          :model-value="settings.settings.splashAnimation"
+          :options="splashOptions"
+          @update:model-value="settings.set({ splashAnimation: $event as never })"
+        />
+        <button
+          class="btn btn-sm"
+          :disabled="splashPreviewing"
+          v-hint="t.hints.splashPreview"
+          @click="playSplashPreview"
+        >
+          <AppIcon name="play" :size="14" />
+          {{ t.settings.splashPreview }}
+        </button>
+      </div>
+      <div class="row">
+        <span>{{ t.settings.splashDuration }}</span>
+        <input
+          class="range-slider"
+          type="range"
+          :min="SPLASH_DUR_MIN"
+          :max="SPLASH_DUR_MAX"
+          :step="SPLASH_DUR_STEP"
+          :style="{ '--fill': splashFillPct }"
+          v-model.number="splashDurDraft"
+          :aria-label="t.settings.splashDuration"
+          @change="onSplashDurCommit"
+        />
+        <span class="fs-value meta">{{ t.settings.splashDurationValue(splashDurDraft.toFixed(1)) }}</span>
+      </div>
+      <p class="hint row-note">{{ t.settings.splashDurationDesc }}</p>
       <div class="row font-row">
         <span>{{ t.settings.font }}</span>
         <AppSelect
@@ -427,8 +520,8 @@ async function applyNewRoot(dir: string | null) {
   font-size: 1.2rem;
 }
 
-/* 自绘滑块：4px 圆角轨道 + 描边圆钮（--fill 由组件按当前值驱动 accent 填充长度） */
-.fs-slider {
+/* 自绘滑块（字号 / 时长共用）：4px 圆角轨道 + 描边圆钮（--fill 由组件按当前值驱动 accent 填充长度） */
+.range-slider {
   -webkit-appearance: none;
   appearance: none;
   width: 180px;
@@ -438,13 +531,13 @@ async function applyNewRoot(dir: string | null) {
   cursor: pointer;
 }
 
-.fs-slider::-webkit-slider-runnable-track {
+.range-slider::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 999px;
   background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--hairline-strong) var(--fill, 0%));
 }
 
-.fs-slider::-webkit-slider-thumb {
+.range-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 17px;
@@ -457,28 +550,28 @@ async function applyNewRoot(dir: string | null) {
   transition: transform 120ms ease;
 }
 
-.fs-slider:hover::-webkit-slider-thumb {
+.range-slider:hover::-webkit-slider-thumb {
   transform: scale(1.08);
 }
 
-.fs-slider:active::-webkit-slider-thumb {
+.range-slider:active::-webkit-slider-thumb {
   transform: scale(1.14);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.26);
 }
 
-.fs-slider::-moz-range-track {
+.range-slider::-moz-range-track {
   height: 4px;
   border-radius: 999px;
   background: var(--hairline-strong);
 }
 
-.fs-slider::-moz-range-progress {
+.range-slider::-moz-range-progress {
   height: 4px;
   border-radius: 999px;
   background: var(--accent);
 }
 
-.fs-slider::-moz-range-thumb {
+.range-slider::-moz-range-thumb {
   width: 15px;
   height: 15px;
   border-radius: 50%;
@@ -488,11 +581,11 @@ async function applyNewRoot(dir: string | null) {
   transition: transform 120ms ease;
 }
 
-.fs-slider:hover::-moz-range-thumb {
+.range-slider:hover::-moz-range-thumb {
   transform: scale(1.08);
 }
 
-.fs-slider:active::-moz-range-thumb {
+.range-slider:active::-moz-range-thumb {
   transform: scale(1.14);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.26);
 }
@@ -544,7 +637,7 @@ async function applyNewRoot(dir: string | null) {
   }
 
   /* 窄屏收紧滑块，让「小—滑块—大—百分比」与标签同行放下 */
-  .fs-slider {
+  .range-slider {
     width: 132px;
   }
 }

@@ -108,6 +108,9 @@ export type ThemeMode = 'system' | 'light' | 'dark'
  */
 export type FontSetting = string
 
+/** 启动画面退场动画预设：zoom 放大淡出 / shrink 缩小淡出 / slide 向上滑出 / fade 直接淡出 */
+export type SplashAnimation = 'zoom' | 'shrink' | 'slide' | 'fade'
+
 export interface Settings {
   theme: ThemeMode
   defaultExportFormat: ExportFormat
@@ -116,6 +119,10 @@ export interface Settings {
   fontScale: number
   /** 桌面端：悬停控件时标题栏中间显示该控件的用途说明 */
   titlebarHints: boolean
+  /** 启动画面退场动画预设（入场动画固定，预设作用于数据就绪后的退场） */
+  splashAnimation: SplashAnimation
+  /** 启动画面最短展示时长（秒），设置页滑块可调，范围 0.6–3.0 */
+  splashDuration: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -124,6 +131,8 @@ export const DEFAULT_SETTINGS: Settings = {
   fontFamily: 'system',
   fontScale: 1,
   titlebarHints: true,
+  splashAnimation: 'zoom',
+  splashDuration: 1.4,
 }
 
 /** crypto.randomUUID 仅在安全上下文可用，兜底保证任何环境都能生成 id */

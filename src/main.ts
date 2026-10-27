@@ -19,10 +19,17 @@ function dismissSplash(): void {
   if (!el) return
   // 跟随已解析的主题换底色，避免深色用户在淡出瞬间撞上白屏
   el.style.background = document.documentElement.dataset.theme === 'dark' ? '#1b1b1d' : ''
+  // 退场预设来自设置页「启动动画」（zoom 放大淡出为缺省样式，不挂类）
+  const preset = useSettingsStore().settings.splashAnimation
   el.classList.add('leaving')
-  el.addEventListener('animationend', () => el.remove(), { once: true })
+  if (preset && preset !== 'zoom') el.classList.add(preset)
+  el.addEventListener('animationend', (e) => {
+    // 只认层自身的退场动画结束（img 的入场动画已结束，但保险起见过滤冒泡）
+    if (e.target !== el) return
+    el.remove()
+  })
   // 动画事件丢失（如动画被系统提前裁剪）时兜底清除
-  setTimeout(() => el.remove(), 700)
+  setTimeout(() => el.remove(), 900)
 }
 
 async function bootstrap() {

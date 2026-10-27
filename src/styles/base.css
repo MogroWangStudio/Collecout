@@ -571,6 +571,75 @@ textarea.input:focus {
   color: var(--ink-2);
 }
 
+/* ---------- 启动画面退场（预设） ----------
+   退场发生在应用就绪后，本文件届时已加载；入场动画留在 index.html 内联（首帧职责）。
+   预设对应设置页「启动动画」：zoom 放大淡出（默认）/ shrink 缩小淡出 /
+   slide 向上滑出 / fade 直接淡出，全部走全局 sheet 曲线的非线性运动；
+   预设类由 main.ts 按设置挂到层上（zoom 为缺省，不挂类）。
+   预览层（设置页临时插入的 .splash-preview）与 #splash 同构，共用同一套类名与关键帧。 */
+@keyframes splash-out {
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes splash-out-shrink {
+  to {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes splash-out-slide {
+  to {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes splash-out-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+#splash.leaving,
+.splash-preview.leaving {
+  animation: splash-out 420ms var(--ease-sheet) forwards;
+}
+
+#splash.leaving.shrink,
+.splash-preview.leaving.shrink {
+  animation: splash-out-shrink 460ms var(--ease-sheet) forwards;
+}
+
+#splash.leaving.slide,
+.splash-preview.leaving.slide {
+  animation: splash-out-slide 500ms var(--ease-sheet) forwards;
+}
+
+#splash.leaving.fade,
+.splash-preview.leaving.fade {
+  animation: splash-out-fade 280ms ease forwards;
+}
+
+/* 预览层：设置页「预览动画」临时插入，结构与 #splash 相同；
+   入场动画引用 index.html 内联定义的 splash-in 关键帧（文档级全局，勿单独移除）。 */
+.splash-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+}
+
+.splash-preview img {
+  width: 76px;
+  height: 76px;
+  animation: splash-in 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* ---------- 无障碍与降级 ---------- */
 @media (prefers-reduced-motion: reduce) {
   *,

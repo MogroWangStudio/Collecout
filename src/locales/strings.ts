@@ -2,7 +2,7 @@
 export const t = {
   appName: '萃序',
   appNameEn: 'Collecout',
-  version: '1.3.0',
+  version: '1.4.0',
 
   nav: {
     libraries: '库',
@@ -64,6 +64,7 @@ export const t = {
     libTable: '以表格查看条目',
     libCards: '以卡片查看条目',
     libChangeLocation: '查看并更改库文件的存放位置',
+    splashPreview: '按当前的预设与持续时间，完整播放一遍启动动画',
   },
 
   oobe: {
@@ -335,6 +336,15 @@ export const t = {
     fontSizeLarge: '大',
     titlebarHints: '标题栏悬停提示',
     titlebarHintsDesc: '鼠标悬停在控件上时，标题栏中间显示该控件的用途说明。',
+    splashAnimation: '启动动画',
+    splashZoom: '放大淡出',
+    splashShrink: '缩小淡出',
+    splashSlide: '向上滑出',
+    splashFade: '直接淡出',
+    splashDuration: '持续时间',
+    splashDurationValue: (s: string) => `${s} 秒`,
+    splashDurationDesc: '启动画面至少展示这么久再退场，动画本身的快慢不变。',
+    splashPreview: '预览动画',
     exportDefaults: '导出',
     defaultFormat: '默认导出格式',
     data: '数据',

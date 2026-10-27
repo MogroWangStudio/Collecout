@@ -3,6 +3,20 @@
 本项目的所有显著变更将记录在此文件。
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.4.0] - 2026-10-27
+
+### Added
+
+- **启动动画预设与持续时间设置**：设置页「外观」新增「启动动画」——四种退场预设可选（放大淡出 / 缩小淡出 / 向上滑出 / 直接淡出，默认放大淡出），0.6–3 秒滑块调节启动画面最短展示时长（拖动即时显示、松手保存），旁边「预览动画」按钮按当前预设与时长完整播放一遍（入场 → 停留 → 退场），无需重启应用即可看全效果。预设只作用于数据就绪后的退场（入场动画发生在设置加载前的首帧，固定不变）；四种退场均走全局 sheet 非线性曲线，只动 `transform` 与 `opacity`，尊重系统「减弱动态效果」（全局降级为瞬时切换），预览层底色与退场前的真实启动层一样跟随已解析的主题切换深浅色。
+
+### Changed
+
+- **安卓 12+ 系统启动屏不再显示大图标**：Android 12+ 会强制展示系统自带启动屏（居中大图标 + 退场动画），且无法彻底关闭；现把 `windowSplashScreenAnimatedIcon` 设为透明，系统启动屏全程只剩一片与应用同色的白底——观感上没有原生启动界面，启动过程直接衔接窗口背景与 web 层启动画面（同为白底居中 logo）。
+- **安卓端应用名改为「Collecout」**：启动器图标名称与任务切换器显示改用 Collecout（`capacitor.config.ts` 的 `appName` 与 `strings.xml` 的 `app_name` / `title_activity_main`），包名 `com.mws.collecout` 不变；产品名「萃序 Collecout」在桌面端与界面内保持不变。
+- **版本 1.4.0**：全平台（Tauri / Android / 前端）版本号同步至 1.4.0，Android versionCode 9。
+
+[1.4.0]: https://github.com/mogrowang/collecout/compare/v1.3.0...v1.4.0
+
 ## [1.3.0] - 2026-10-11
 
 ### Fixed

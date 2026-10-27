@@ -24,9 +24,12 @@
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <!-- splash 消失后、WebView 首帧前的窗口底：白底 + 居中 logo，与系统 splash 同样式 -->
         <item name="android:windowBackground">@drawable/splash</item>
-        <!-- API 31+ 系统 splash（androidx core-splashscreen 兼容属性） -->
+        <!-- API 31+ 系统 splash（androidx core-splashscreen 兼容属性）。
+             系统在 Android 12+ 会强制展示自带启动屏（大图标 + 动画），无法彻底关闭；
+             把图标设为透明后只剩一片与应用同色的白底，观感上没有原生启动界面，
+             启动过程直接衔接窗口背景与 web 层启动画面（同为白底居中 logo） -->
         <item name="windowSplashScreenBackground">@color/splash_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

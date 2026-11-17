@@ -470,6 +470,24 @@ textarea.input:focus {
   opacity: 0;
 }
 
+/* ---------- 旋转指示（SVG spinner） ---------- */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 800ms linear infinite;
+}
+
+.spin-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: -2px;
+}
+
 .pop-enter-active,
 .pop-leave-active {
   transition: opacity 160ms ease, transform 200ms var(--ease-sheet);
@@ -575,12 +593,14 @@ textarea.input:focus {
    退场发生在应用就绪后，本文件届时已加载；入场动画留在 index.html 内联（首帧职责）。
    预设对应设置页「启动动画」：zoom 放大淡出（默认）/ shrink 缩小淡出 /
    slide 向上滑出 / fade 直接淡出，全部走全局 sheet 曲线的非线性运动；
+   zoom / shrink 附加轻微材质模糊，让整层像真实材质一样溶解而不是干瘪地缩放；
    预设类由 main.ts 按设置挂到层上（zoom 为缺省，不挂类）。
    预览层（设置页临时插入的 .splash-preview）与 #splash 同构，共用同一套类名与关键帧。 */
 @keyframes splash-out {
   to {
     opacity: 0;
     transform: scale(1.04);
+    filter: blur(6px);
   }
 }
 
@@ -588,6 +608,7 @@ textarea.input:focus {
   to {
     opacity: 0;
     transform: scale(0.94);
+    filter: blur(6px);
   }
 }
 
@@ -623,8 +644,9 @@ textarea.input:focus {
   animation: splash-out-fade 280ms ease forwards;
 }
 
-/* 预览层：设置页「预览动画」临时插入，结构与 #splash 相同；
-   入场动画引用 index.html 内联定义的 splash-in 关键帧（文档级全局，勿单独移除）。 */
+/* 预览层：设置页「预览动画」临时插入，结构与 #splash 相同（克隆 index.html 里的
+   splash-logo-tpl）；入场动画引用 index.html 内联定义的 splash-left / splash-right /
+   splash-drop 关键帧（文档级全局，勿单独移除），logo 颜色由设置页按当前主题色注入。 */
 .splash-preview {
   position: fixed;
   inset: 0;
@@ -634,10 +656,20 @@ textarea.input:focus {
   background: #ffffff;
 }
 
-.splash-preview img {
-  width: 76px;
-  height: 76px;
-  animation: splash-in 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+.splash-preview .splash-logo {
+  display: block;
+}
+
+.splash-preview .p-left {
+  animation: splash-left 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.splash-preview .p-right {
+  animation: splash-right 460ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
+}
+
+.splash-preview .p-drop {
+  animation: splash-drop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 300ms both;
 }
 
 /* ---------- 无障碍与降级 ---------- */
@@ -647,6 +679,11 @@ textarea.input:focus {
   *::after {
     transition-duration: 1ms !important;
     animation-duration: 1ms !important;
+  }
+
+  /* 旋转指示是状态反馈不是装饰：降级为慢速旋转而不是停转（1ms 会变成频闪） */
+  .spin {
+    animation-duration: 1600ms !important;
   }
 
   .sheet-enter-from > *,

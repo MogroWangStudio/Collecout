@@ -139,7 +139,7 @@ function openDownloadPage() {
             :disabled="update.status === 'checking' || update.status === 'downloading'"
             @click="update.check()"
           >
-            <AppIcon name="refresh" :size="15" />
+            <AppIcon :name="update.status === 'checking' ? 'spinner' : 'refresh'" :size="15" :class="{ spin: update.status === 'checking' }" />
             {{ update.status === 'checking' ? t.about.checking : t.about.checkUpdate }}
           </button>
           <span v-if="update.status === 'latest'" class="hint up-to-date">

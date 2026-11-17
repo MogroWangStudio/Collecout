@@ -2,7 +2,7 @@
 export const t = {
   appName: '萃序',
   appNameEn: 'Collecout',
-  version: '1.5.0-beta1',
+  version: '1.5.0-beta2',
 
   nav: {
     libraries: '库',
@@ -65,6 +65,8 @@ export const t = {
     libCards: '以卡片查看条目',
     libChangeLocation: '查看并更改库文件的存放位置',
     splashPreview: '按当前的预设与持续时间，完整播放一遍启动动画',
+    themeMode: '切换浅色、深色或跟随系统',
+    accentTheme: '挑选界面的强调色',
   },
 
   oobe: {
@@ -323,6 +325,15 @@ export const t = {
     themeSystem: '跟随系统',
     themeLight: '浅色',
     themeDark: '深色',
+    accent: '主题色',
+    accentGreen: '翠绿',
+    accentIndigo: '靛蓝',
+    accentTeal: '青瓷',
+    accentBlue: '苍蓝',
+    accentViolet: '绛紫',
+    accentRose: '玫红',
+    accentCoral: '珊瑚',
+    accentGraphite: '石墨',
     font: '界面字体',
     fontSystem: '跟随系统',
     fontSerif: '宋体（衬线）',

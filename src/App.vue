@@ -5,7 +5,7 @@ import { useLibrariesStore } from './stores/libraries'
 import { useUiStore } from './stores/ui'
 import { useUpdateStore } from './stores/update'
 import { t } from './locales/strings'
-import { isDesktop, isMobileLayout, platform } from './lib/platform'
+import { isDesktop, isMac, isMobileLayout, platform } from './lib/platform'
 import { applySafeAreaInsets } from './lib/native'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
@@ -48,6 +48,8 @@ const tbCenter = computed(() => (isHint.value ? ui.hoverHint : titlebarTitle.val
 
 /* ---------- 桌面标题栏（窗口控制 + 拖动） ---------- */
 const maximized = ref(false)
+/** macOS：窗口装饰交给系统（红绿灯 + 系统级圆角），自绘控件退场、logo 让位右上角 */
+const mac = isMac()
 let win: import('@tauri-apps/api/window').Window | null = null
 let unlisten: (() => void) | null = null
 
@@ -81,8 +83,9 @@ async function closeWindow() {
 
 <template>
   <div class="app-frame" :class="{ mobile }">
-    <!-- 桌面标题栏：左 logo、中页面标题/悬停提示、右窗口药丸；空白处按住即可拖动窗口 -->
-    <header v-if="isDesktop()" class="titlebar" data-tauri-drag-region>
+    <!-- 桌面标题栏：Windows/Linux 左 logo、中页面标题/悬停提示、右窗口药丸；
+         macOS 红绿灯占据左上角（系统原生），logo 让位右上角，自绘控件隐藏；空白处按住即可拖动窗口 -->
+    <header v-if="isDesktop()" class="titlebar" :class="{ mac }" data-tauri-drag-region>
       <RouterLink v-if="!fullscreen" to="/" class="tb-brand" :aria-label="t.hints.brand" v-hint="t.hints.brand">
         <img src="/logo-text.svg" alt="" class="tb-logo" />
       </RouterLink>
@@ -92,7 +95,7 @@ async function closeWindow() {
       <Transition name="hint" mode="out-in">
         <span :key="tbCenter" class="tb-title" :class="{ 'tb-hint': isHint }" data-tauri-drag-region>{{ tbCenter }}</span>
       </Transition>
-      <div class="win-controls">
+      <div v-if="!mac" class="win-controls">
         <button class="wc-btn" :aria-label="t.titlebar.minimize" v-hint="t.hints.minimize" @click="minimize">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6h8" stroke="currentColor" stroke-width="1.2" /></svg>
         </button>
@@ -241,7 +244,7 @@ async function closeWindow() {
 @keyframes app-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(6px) scale(0.995);
   }
 }
 
@@ -358,7 +361,17 @@ async function closeWindow() {
   transform: translateX(-50%);
 }
 
-/* 窗口药丸控件：收在标题栏右侧 */
+/* macOS：系统红绿灯占据左上角（原生按钮位于标准标题栏位置），左侧留出它们的区域，
+   logo 换位到右上角——控件换位 macOS 系统级红绿灯，自绘药丸不再渲染 */
+.titlebar.mac {
+  padding-left: 80px;
+}
+
+.titlebar.mac .tb-brand {
+  margin-left: auto;
+}
+
+/* 窗口药丸控件：收在标题栏右侧（Windows / Linux） */
 .win-controls {
   margin-left: auto;
   display: flex;

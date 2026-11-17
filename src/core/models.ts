@@ -103,6 +103,12 @@ export type ExportFormat = 'markdown' | 'text' | 'csv' | 'json' | 'folder' | 'do
 export type ThemeMode = 'system' | 'light' | 'dark'
 
 /**
+ * 主题色（强调色）id：对应 tokens.css 里 [data-accent] 的取值与设置页「主题色」卡片。
+ * 'green'（翠绿）为缺省，无对应 CSS 块时回落到基础令牌。
+ */
+export type AccentTheme = 'green' | 'indigo' | 'teal' | 'blue' | 'violet' | 'rose' | 'coral' | 'graphite' | string
+
+/**
  * 界面字体：FONT_PRESETS 里的预设 id（'system' 跟随系统），或任意 CSS font-family 值（自定义）。
  * 预设表在 stores/settings.ts 中（应用与设置页共用）。
  */
@@ -119,6 +125,8 @@ export type UpdateSource = 'github' | 'ghproxy'
 
 export interface Settings {
   theme: ThemeMode
+  /** 主题色（强调色）：tokens.css 的 data-accent 取值，翠绿为缺省 */
+  accentTheme: AccentTheme
   defaultExportFormat: ExportFormat
   fontFamily: FontSetting
   /** 界面字号缩放（1rem = 10px × 此值），设置页滑块可调，范围 0.85–1.3 */
@@ -137,6 +145,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
+  accentTheme: 'green',
   defaultExportFormat: 'markdown',
   fontFamily: 'system',
   fontScale: 1,

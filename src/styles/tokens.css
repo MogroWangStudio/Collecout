@@ -25,6 +25,7 @@
   --danger-soft: rgba(179, 38, 30, 0.1);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.06);
   --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.16);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.14);
   --scrim: rgba(0, 0, 0, 0.32);
   --r-s: 7px;
   --r-m: 11px;
@@ -58,5 +59,121 @@
   --danger-soft: rgba(229, 100, 92, 0.14);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5);
   --scrim: rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- 主题色（设置页「主题色」卡片切换，data-accent 挂在 <html>） ----------
+   缺省（无属性或 'green'）即上面的翠绿；其余主题各给浅色 / 深色两组强调色，
+   深色组写在暗色块之后以同优先级后到覆盖。 */
+:root[data-accent='indigo'] {
+  --accent: #4c5fd5;
+  --accent-hover: #3f51c0;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(76, 95, 213, 0.1);
+  --accent-soft-2: rgba(76, 95, 213, 0.17);
+}
+
+:root[data-accent='teal'] {
+  --accent: #2e8f82;
+  --accent-hover: #267a6e;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(46, 143, 130, 0.1);
+  --accent-soft-2: rgba(46, 143, 130, 0.17);
+}
+
+:root[data-accent='blue'] {
+  --accent: #3173c4;
+  --accent-hover: #2961a8;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(49, 115, 196, 0.1);
+  --accent-soft-2: rgba(49, 115, 196, 0.17);
+}
+
+:root[data-accent='violet'] {
+  --accent: #7d5bd0;
+  --accent-hover: #6a4bbd;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(125, 91, 208, 0.1);
+  --accent-soft-2: rgba(125, 91, 208, 0.17);
+}
+
+:root[data-accent='rose'] {
+  --accent: #c14e6a;
+  --accent-hover: #a8425c;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(193, 78, 106, 0.1);
+  --accent-soft-2: rgba(193, 78, 106, 0.17);
+}
+
+:root[data-accent='coral'] {
+  --accent: #c9603f;
+  --accent-hover: #b05234;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(201, 96, 63, 0.1);
+  --accent-soft-2: rgba(201, 96, 63, 0.17);
+}
+
+:root[data-accent='graphite'] {
+  --accent: #5a5a60;
+  --accent-hover: #4a4a50;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(90, 90, 96, 0.1);
+  --accent-soft-2: rgba(90, 90, 96, 0.17);
+}
+
+:root[data-theme='dark'][data-accent='indigo'] {
+  --accent: #8593ea;
+  --accent-hover: #9daaef;
+  --accent-ink: #131a3d;
+  --accent-soft: rgba(133, 147, 234, 0.16);
+  --accent-soft-2: rgba(133, 147, 234, 0.26);
+}
+
+:root[data-theme='dark'][data-accent='teal'] {
+  --accent: #5cb9ab;
+  --accent-hover: #7bcabf;
+  --accent-ink: #06302b;
+  --accent-soft: rgba(92, 185, 171, 0.15);
+  --accent-soft-2: rgba(92, 185, 171, 0.25);
+}
+
+:root[data-theme='dark'][data-accent='blue'] {
+  --accent: #6aa6e6;
+  --accent-hover: #8dbcf0;
+  --accent-ink: #0c2740;
+  --accent-soft: rgba(106, 166, 230, 0.15);
+  --accent-soft-2: rgba(106, 166, 230, 0.25);
+}
+
+:root[data-theme='dark'][data-accent='violet'] {
+  --accent: #a68ae8;
+  --accent-hover: #b9a4ef;
+  --accent-ink: #221242;
+  --accent-soft: rgba(166, 138, 232, 0.15);
+  --accent-soft-2: rgba(166, 138, 232, 0.25);
+}
+
+:root[data-theme='dark'][data-accent='rose'] {
+  --accent: #e2879d;
+  --accent-hover: #eba3b4;
+  --accent-ink: #3c0f1e;
+  --accent-soft: rgba(226, 135, 157, 0.14);
+  --accent-soft-2: rgba(226, 135, 157, 0.24);
+}
+
+:root[data-theme='dark'][data-accent='coral'] {
+  --accent: #e89272;
+  --accent-hover: #f0a88d;
+  --accent-ink: #3d170a;
+  --accent-soft: rgba(232, 146, 114, 0.14);
+  --accent-soft-2: rgba(232, 146, 114, 0.24);
+}
+
+:root[data-theme='dark'][data-accent='graphite'] {
+  --accent: #a2a2ab;
+  --accent-hover: #b6b6bf;
+  --accent-ink: #1d1d20;
+  --accent-soft: rgba(162, 162, 171, 0.14);
+  --accent-soft-2: rgba(162, 162, 171, 0.22);
 }

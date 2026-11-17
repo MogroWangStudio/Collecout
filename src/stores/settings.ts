@@ -50,10 +50,16 @@ export const useSettingsStore = defineStore('settings', {
     apply() {
       const theme = resolveTheme(this.settings.theme)
       document.documentElement.dataset.theme = theme
+      document.documentElement.dataset.accent = this.settings.accentTheme || 'green'
       const font = this.settings.fontFamily
       if (!font || font === 'system') document.documentElement.style.removeProperty('--font')
       else document.documentElement.style.setProperty('--font', resolveFontStack(font))
       document.documentElement.style.setProperty('--fs', String(this.settings.fontScale ?? 1))
+      // 启动画面还在时（首次加载）把内联 logo 染成当前主题色：路径 fill 用 currentColor
+      const splash = document.getElementById('splash')
+      if (splash) {
+        splash.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#47974f'
+      }
       // 安卓：状态栏图标明暗跟随主题（浅色顶栏配深色图标）
       setStatusBarIcons(theme === 'light')
     },

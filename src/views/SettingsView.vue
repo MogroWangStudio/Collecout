@@ -38,6 +38,26 @@ const themeOptions = [
   { id: 'dark', label: t.settings.themeDark },
 ] as const
 
+/* ---------- 主题色卡片：light/dark 各半的对分色板即两种模式下的实际强调色 ---------- */
+const accentThemes = [
+  { id: 'green', label: t.settings.accentGreen, light: '#47974f', dark: '#5eb868' },
+  { id: 'indigo', label: t.settings.accentIndigo, light: '#4c5fd5', dark: '#8593ea' },
+  { id: 'teal', label: t.settings.accentTeal, light: '#2e8f82', dark: '#5cb9ab' },
+  { id: 'blue', label: t.settings.accentBlue, light: '#3173c4', dark: '#6aa6e6' },
+  { id: 'violet', label: t.settings.accentViolet, light: '#7d5bd0', dark: '#a68ae8' },
+  { id: 'rose', label: t.settings.accentRose, light: '#c14e6a', dark: '#e2879d' },
+  { id: 'coral', label: t.settings.accentCoral, light: '#c9603f', dark: '#e89272' },
+  { id: 'graphite', label: t.settings.accentGraphite, light: '#5a5a60', dark: '#a2a2ab' },
+]
+
+async function setTheme(id: 'system' | 'light' | 'dark') {
+  await settings.set({ theme: id })
+}
+
+async function setAccent(id: string) {
+  await settings.set({ accentTheme: id })
+}
+
 /* ---------- 界面字体 ---------- */
 const FONT_PRESET_IDS = ['system', 'serif', 'kai', 'mono'] as const
 
@@ -132,12 +152,12 @@ function playSplashPreview() {
   const el = document.createElement('div')
   el.className = 'splash-preview'
   el.setAttribute('aria-hidden', 'true')
-  // 底色跟随已解析的主题，与启动层同一套深色底
+  // 底色跟随已解析的主题，与启动层同一套深色底；logo 染当前主题色（路径 fill 用 currentColor）
   el.style.background = document.documentElement.dataset.theme === 'dark' ? '#1b1b1d' : '#ffffff'
-  const img = document.createElement('img')
-  img.src = '/icon.svg'
-  img.alt = ''
-  el.appendChild(img)
+  el.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#47974f'
+  // logo 取 index.html 里的启动模板（含逐笔入场动画的类名），克隆插入即重放动画
+  const tpl = document.getElementById('splash-logo-tpl') as HTMLTemplateElement | null
+  if (tpl) el.appendChild(tpl.content.cloneNode(true))
   document.body.appendChild(el)
 
   const preset = settings.settings.splashAnimation
@@ -168,10 +188,6 @@ const formatOptions = [
   { id: 'xlsx', label: t.exportDialog.fmtXlsx },
   { id: 'docx', label: t.exportDialog.fmtDocx },
 ] as const
-
-async function setTheme(id: 'system' | 'light' | 'dark') {
-  await settings.set({ theme: id })
-}
 
 /** 标题栏悬停提示开关：关闭后立刻清掉当前显示的提示 */
 function toggleTitlebarHints() {
@@ -239,15 +255,40 @@ async function applyNewRoot(dir: string | null) {
       <h2 class="group-title">{{ t.settings.appearance }}</h2>
       <div class="row">
         <span>{{ t.settings.theme }}</span>
-        <div class="seg">
+        <div class="mode-cards">
           <button
             v-for="opt in themeOptions"
             :key="opt.id"
+            class="mode-card"
             :class="{ on: settings.settings.theme === opt.id }"
+            type="button"
+            v-hint="t.hints.themeMode"
             @click="setTheme(opt.id)"
           >
-            <i class="swatch" :class="`sw-${opt.id}`" aria-hidden="true" />
-            {{ opt.label }}
+            <i class="mode-preview" :class="`mp-${opt.id}`" aria-hidden="true" />
+            <span class="mode-name">{{ opt.label }}</span>
+          </button>
+        </div>
+      </div>
+      <div class="row">
+        <span>{{ t.settings.accent }}</span>
+        <div class="accent-cards">
+          <button
+            v-for="th in accentThemes"
+            :key="th.id"
+            class="accent-card"
+            :class="{ on: settings.settings.accentTheme === th.id }"
+            type="button"
+            v-hint="t.hints.accentTheme"
+            @click="setAccent(th.id)"
+          >
+            <i
+              class="accent-chip"
+              :style="{ background: `linear-gradient(135deg, ${th.light} 50%, ${th.dark} 50%)` }"
+              aria-hidden="true"
+            />
+            <span class="accent-name">{{ th.label }}</span>
+            <AppIcon v-if="settings.settings.accentTheme === th.id" name="check" :size="12" class="accent-check" />
           </button>
         </div>
       </div>
@@ -453,26 +494,132 @@ async function applyNewRoot(dir: string | null) {
   margin-right: auto;
 }
 
-/* 主题选项的颜色预览 */
-.swatch {
-  display: inline-block;
-  width: 13px;
-  height: 13px;
-  border-radius: 4px;
+/* 明暗模式卡片：迷你窗口预览（浅色 / 深色 / 对分跟随系统），选中描边强调色 */
+.mode-cards {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 7px;
+  border-radius: var(--r-m);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  transition: border-color 150ms ease, background 150ms ease, transform 100ms ease-out;
+}
+
+.mode-card:active {
+  transform: scale(0.97);
+}
+
+.mode-card.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.mode-preview {
+  display: block;
+  position: relative;
+  width: 44px;
+  height: 28px;
+  border-radius: 5px;
   border: 1px solid var(--hairline-strong);
-  vertical-align: -2px;
-}
-
-.sw-system {
-  background: linear-gradient(135deg, #f4f3f0 50%, #1b1b1d 50%);
-}
-
-.sw-light {
   background: #f4f3f0;
 }
 
-.sw-dark {
+/* 迷你窗口的三个圆点：模拟系统红绿灯的位置 */
+.mode-preview::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #8a8a88;
+  box-shadow: 6px 0 0 #8a8a88, 12px 0 0 #8a8a88;
+}
+
+.mode-preview.mp-dark {
   background: #1b1b1d;
+}
+
+.mode-preview.mp-dark::before {
+  background: #6a6a6e;
+  box-shadow: 6px 0 0 #6a6a6e, 12px 0 0 #6a6a6e;
+}
+
+.mode-preview.mp-system {
+  background: linear-gradient(135deg, #f4f3f0 50%, #1b1b1d 50%);
+}
+
+.mode-name {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.mode-card.on .mode-name {
+  color: var(--accent);
+}
+
+/* 主题色卡片：占满整行网格排布；对分色板 = 该色在浅色 / 深色模式下的实际值 */
+.accent-cards {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+
+.accent-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--r-m);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  transition: border-color 150ms ease, background 150ms ease, transform 100ms ease-out;
+}
+
+.accent-card:active {
+  transform: scale(0.97);
+}
+
+.accent-card.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.accent-chip {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  border: 1px solid var(--hairline-strong);
+}
+
+.accent-name {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accent-card.on .accent-name {
+  color: var(--accent);
+}
+
+.accent-check {
+  flex: none;
+  color: var(--accent);
 }
 
 /* 自定义字体输入框：与下拉之间留出明显间隔 */

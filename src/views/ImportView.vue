@@ -454,7 +454,7 @@ async function finish() {
               <span v-if="f.error" class="meta error">{{ f.error }}</span>
               <span v-else-if="f.doc?.kind === 'file'" class="meta">{{ t.import.kindFile }} · {{ t.import.fileAttachNote }}</span>
               <span v-else-if="f.doc" class="meta">{{ kindLabel(f.doc.kind) }} · {{ f.doc.blocks.length }} 个内容块</span>
-              <span v-else class="meta">解析中…</span>
+              <span v-else class="meta spin-inline"><AppIcon name="spinner" :size="12" class="spin" />解析中…</span>
             </div>
             <button class="icon-btn danger file-remove" :aria-label="t.import.removeFile" @click="importer.removeFile(f.id)">
               <AppIcon name="x" />

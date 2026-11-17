@@ -1,0 +1,283 @@
+name: Release
+
+# 三步骤发布：
+#   1 · 检查 package.json 里的版本号，决定这次要不要发、发成什么
+#   2 · 按版本号建 tag 与草稿 Release（x.y.z 正式版，x.y.z-betaN 预发布）
+#   3 · 三平台构建 → 打包 → 上传 → 公开
+# 版本号没变时第一步就会跳过，不会每次推送都重复构建。
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1 · 检查当前软件版本
+  # ---------------------------------------------------------------------------
+  version:
+    name: 1 · 检查版本
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      tag: ${{ steps.read.outputs.tag }}
+      publish: ${{ steps.read.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 读取版本号并判断是否需要发布
+        id: read
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p 'require("./package.json").version')
+
+          # tag、草稿标题与安装包名都由版本号推导，格式不对宁可停在第一步
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-beta[0-9]+)?$'; then
+            echo "::error::版本号 $VERSION 不符合 x.y.z 或 x.y.z-betaN，无法生成 tag 与安装包名"
+            exit 1
+          fi
+
+          TAG="v$VERSION"
+          STATE=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null || echo missing)
+
+          if [ "$STATE" = "false" ]; then
+            echo "::notice::$TAG 已经发布过，本次不重复构建"
+            PUBLISH=false
+          else
+            # 上次只建了草稿（构建失败/中断）：删掉重建，否则 tag 被占着又永远发不出去
+            if [ "$STATE" = "true" ]; then
+              echo "::warning::$TAG 存在未完成的草稿，删除后重建"
+              gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+            fi
+            PUBLISH=true
+          fi
+
+          {
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+            echo "publish=$PUBLISH"
+          } >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # 2 · 确定 Release 与 tag（先草稿，构建完再公开，避免用户端查到半个版本）
+  # ---------------------------------------------------------------------------
+  tag:
+    name: 2 · 建 tag 与草稿 Release
+    needs: version
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      release-id: ${{ steps.create.outputs.release-id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 创建草稿发布
+        id: create
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          NOTES=$(awk -v ver="$VERSION" '
+            index($0, "## [" ver "]") == 1 { inside = 1; next }
+            inside && index($0, "## [") == 1 { exit }
+            inside && /^\[[^]]+\]:/ { next }
+            inside { print }
+          ' CHANGELOG.md)
+
+          if [ -n "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Collecout $VERSION" --draft --notes "$NOTES"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Collecout $VERSION" --draft --generate-notes
+          fi
+
+          echo "release-id=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json databaseId -q .databaseId)" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # 3 · 构建三平台压缩包并上传
+  #   命名：Collecout-<版本>-<平台>-<架构>.zip（应用内检查更新按这个名字找资产）
+  #   Windows / 安卓包里只有单个可执行文件，macOS 额外带解锁命令
+  # ---------------------------------------------------------------------------
+  build:
+    name: 3 · 构建 ${{ matrix.name }}
+    needs: [version, tag]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            platform: windows
+          - name: macOS arm64
+            os: macos-latest
+            platform: macos
+          - name: Android 通用包
+            os: ubuntu-latest
+            platform: android
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEYSTORE_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.platform != 'android'
+        with:
+          targets: ${{ matrix.platform == 'windows' && 'x86_64-pc-windows-msvc' || 'aarch64-apple-darwin' }}
+
+      - uses: Swatinem/rust-cache@v2
+        if: matrix.platform != 'android'
+        with:
+          workspaces: src-tauri
+
+      - uses: actions/setup-java@v4
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          # Capacitor 7 的安卓模块按 Java 21 编译，JDK 17 会报「无效的源发行版：21」
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: matrix.platform == 'android'
+
+      - name: 安装依赖
+        run: npm ci
+
+      # ----- Windows：单文件免安装版 -----
+      - name: 构建 Windows 可执行文件
+        if: matrix.platform == 'windows'
+        run: npm run tauri build -- --no-bundle
+
+      - name: 打包 Windows（包内只有 Collecout.exe）
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $candidates = @("src-tauri/target/release/Collecout.exe", "src-tauri/target/release/collecout.exe")
+          $exe = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $exe) { throw "未找到 Windows 构建产物" }
+
+          $stage = Join-Path $env:RUNNER_TEMP "stage-windows"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          # 可执行程序统一叫 Collecout.exe，包内不留任何其他文件
+          Copy-Item $exe (Join-Path $stage "Collecout.exe") -Force
+
+          New-Item -ItemType Directory -Force -Path dist-release | Out-Null
+          $zip = "dist-release/Collecout-${{ needs.version.outputs.version }}-windows-x64.zip"
+          Compress-Archive -Path (Join-Path $stage "Collecout.exe") -DestinationPath $zip -Force
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip))
+          $names = @($archive.Entries | ForEach-Object { $_.FullName })
+          $archive.Dispose()
+          if ($names.Count -ne 1 -or $names[0] -ne "Collecout.exe") {
+            throw "压缩包内容不符合约定：$($names -join ', ')"
+          }
+
+      # ----- macOS：.app + 解锁命令 -----
+      - name: 构建 macOS 应用包
+        if: matrix.platform == 'macos'
+        run: npm run tauri build -- --target aarch64-apple-darwin --bundles app
+
+      - name: 打包 macOS（.app 与解锁命令）
+        if: matrix.platform == 'macos'
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.version.outputs.version }}"
+          APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Collecout.app"
+          [ -d "$APP" ] || { echo "::error::没有找到 $APP"; exit 1; }
+
+          STAGE=$(mktemp -d)
+          cp -R "$APP" "$STAGE/"
+          cp "scripts/macos/解锁并打开.command" "$STAGE/"
+          chmod +x "$STAGE/解锁并打开.command"
+
+          mkdir -p dist-release
+          ZIP="$PWD/dist-release/Collecout-${VERSION}-macos-arm64.zip"
+          ( cd "$STAGE" && zip -qry "$ZIP" "Collecout.app" "解锁并打开.command" )
+
+          unzip -l "$ZIP" | grep -q "解锁并打开.command" || { echo "::error::解锁命令没有进包"; exit 1; }
+
+      # ----- Android：APK -----
+      - name: 构建前端并同步安卓工程
+        if: matrix.platform == 'android'
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: 解码签名证书
+        if: matrix.platform == 'android' && env.ANDROID_KEYSTORE_BASE64 != ''
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > /tmp/collecout.keystore
+          echo "ANDROID_KEYSTORE_PATH=/tmp/collecout.keystore" >> "$GITHUB_ENV"
+
+      - name: 构建 APK
+        if: matrix.platform == 'android'
+        run: |
+          chmod +x android/gradlew
+          android/gradlew -p android assembleRelease --no-daemon
+
+      - name: 打包安卓（包内只有 Collecout.apk）
+        if: matrix.platform == 'android'
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.version.outputs.version }}"
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n 1)
+          [ -n "$APK" ] || { echo "::error::没有找到 APK"; exit 1; }
+
+          STAGE=$(mktemp -d)
+          cp "$APK" "$STAGE/Collecout.apk"
+          mkdir -p dist-release
+          ZIP="$PWD/dist-release/Collecout-${VERSION}-android-universal.zip"
+          ( cd "$STAGE" && zip -q "$ZIP" "Collecout.apk" )
+
+          unzip -l "$ZIP" | grep -q "Collecout.apk" || { echo "::error::APK 没有进包"; exit 1; }
+
+      - name: 上传到 Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release upload "$TAG" dist-release/*.zip --repo "$GITHUB_REPOSITORY" --clobber
+
+  # ---------------------------------------------------------------------------
+  # 3 · 收尾：草稿转公开，预发布版本打上 Pre-Release 标记
+  # ---------------------------------------------------------------------------
+  publish:
+    name: 3 · 公开 Release
+    needs: [version, tag, build]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 草稿转公开
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.tag.outputs.release-id }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if printf '%s' "$VERSION" | grep -q -- '-beta'; then PRE=true; else PRE=false; fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -X PATCH -F draft=false -F prerelease="$PRE"
+          echo "::notice::Collecout $VERSION 已发布（pre-release=$PRE）"

@@ -111,6 +111,12 @@ export type FontSetting = string
 /** 启动画面退场动画预设：zoom 放大淡出 / shrink 缩小淡出 / slide 向上滑出 / fade 直接淡出 */
 export type SplashAnimation = 'zoom' | 'shrink' | 'slide' | 'fade'
 
+/** 更新通道：stable 只接收正式发布，beta 同时接收预发布（x.y.z-betaN） */
+export type UpdateChannel = 'stable' | 'beta'
+
+/** 更新下载源：github 直连，ghproxy 走 GitHub 加速代理 */
+export type UpdateSource = 'github' | 'ghproxy'
+
 export interface Settings {
   theme: ThemeMode
   defaultExportFormat: ExportFormat
@@ -123,6 +129,10 @@ export interface Settings {
   splashAnimation: SplashAnimation
   /** 启动画面最短展示时长（秒），设置页滑块可调，范围 0.6–3.0 */
   splashDuration: number
+  /** 检查更新时使用的通道 */
+  updateChannel: UpdateChannel
+  /** 下载更新时使用的下载源 */
+  updateSource: UpdateSource
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -133,6 +143,8 @@ export const DEFAULT_SETTINGS: Settings = {
   titlebarHints: true,
   splashAnimation: 'zoom',
   splashDuration: 1.4,
+  updateChannel: 'stable',
+  updateSource: 'github',
 }
 
 /** crypto.randomUUID 仅在安全上下文可用，兜底保证任何环境都能生成 id */

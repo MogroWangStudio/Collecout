@@ -1,3 +1,5 @@
+mod update;
+
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 use tauri_plugin_fs::FsExt;
@@ -122,7 +124,12 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             extend_fs_scope,
             resolve_default_root,
-            open_or_reveal
+            open_or_reveal,
+            update::download_update,
+            update::cancel_download,
+            update::probe_speed,
+            update::install_update,
+            update::quit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -33,6 +33,10 @@ export const useSettingsStore = defineStore('settings', {
       fontFamily: 'system',
       fontScale: 1,
       titlebarHints: true,
+      splashAnimation: 'zoom',
+      splashDuration: 1.4,
+      updateChannel: 'stable',
+      updateSource: 'github',
     } as Settings,
   }),
   getters: {

@@ -3,6 +3,30 @@
 本项目的所有显著变更将记录在此文件。
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.5.0-beta1] - 2026-11-17
+
+### Added
+
+- **应用内更新**：关于页查到新版本后，先给出体积、发布日期与发行说明，由你决定是否下载；下载过程有实时进度、速度与「取消下载」，完成后自动开始 5 秒读秒重启安装，读秒期间可取消自动安装，之后也能随时点「立即重启并安装」补上。读秒弹窗常驻在应用最外层，无论当前在哪个页面都能看到并取消——不会在用户看不见的地方把应用关掉。下载与测速走 Rust 侧的原生请求：WebView 里的 `fetch` 会被 GitHub 发行资产的 CORS 拦下（资产响应不带 CORS 头），只有原生请求能真正取到文件；原生请求同时沿用系统代理设置，挂了代理的环境不必再单独配置。
+- **更新通道与下载源，双源测速**：关于页新增「更新」分组。通道分稳定版（只看正式 Release，走 `/releases/latest`）与测试版（把 Pre-Release 一起收，按版本号取最大——预发布比正式版新时拿预发布，正式版反超时也能正常收到）；下载源分 Github Raw（直连 GitHub）与 Github-proxy（加速代理前缀），两个源可一键测速：并发各拉最多 1.2 MB 或 5 秒，按实测速度并排对比、标出较快的那个，慢的一侧保留 2% 的最小可见长度以免读成「没有数据」。
+- **独立助手进程完成自我替换**：Windows 端下载后解包，由一段纯 ASCII 的批处理等主进程退出、覆盖 `Collecout.exe`、按原工作目录重新启动（路径全部通过环境变量传入，中文目录不会在代码页转换里被写坏）；macOS 端由 shell 脚本等进程退出后用 `ditto` 解包覆盖 `.app` 再打开，覆盖失败（例如 `/Applications` 无写权限）就直接打开解出来的新副本。安卓端不接管安装，交给系统浏览器下载安装。
+- **三平台 Release 流水线**：`.github/workflows/release.yml` 分三步——① 读 `package.json` 版本号并校验格式（`x.y.z` / `x.y.z-betaN`）；② 版本号前加 `v` 建 tag 与**草稿** Release（草稿不出现在「最新版本」接口里，构建没跑完时用户端查不到半个版本）；③ 三平台各自构建、打包、上传，三份资产到齐后把草稿转为公开。版本号 `x.y.z` 发正式版，`x.y.z-betaN` 发 Pre-Release；版本号没变时第一步就结束，不会每次推送都重复构建。
+- **压缩包命名与内容约定**：产物按 `Collecout-<版本>-<平台>-<架构>.zip` 命名（应用内检查更新按这个名字找资产）：`Collecout-1.5.0-beta1-windows-x64.zip` 内只有 `Collecout.exe`，`Collecout-1.5.0-beta1-android-universal.zip` 内只有 `Collecout.apk`，`Collecout-1.5.0-beta1-macos-arm64.zip` 内是 `Collecout.app` 与解锁命令。各平台打包后会打开压缩包核对内容，`Collecout.exe` 缺失或包内混入其他文件都直接让构建失败。
+- **macOS 解锁命令随包分发**：新增 `scripts/macos/解锁并打开.command`，双击即清掉隔离属性并启动应用（等价于 `xattr -cr Collecout.app`），不再只把这条命令写在文档里等人抄。
+- **版本号工具的单测**：`src/lib/update.spec.ts` 锁定版本比较与资产名约定——`beta10` 必须排在 `beta9` 之后（按数字而非字典序），`1.5.0` 高于 `1.5.0-beta1`，资产名与发布流水线保持一致。
+
+### Changed
+
+- **关闭「推送即构建」**：移除 `.github/workflows/build.yml`（原先推送与 PR 都会构建三平台并传 Artifacts）。构建改由 Release 流水线承担，只在版本号变化时真正构建，产物直接进 Release 而不是躺在 Actions 里过期。
+- **关于页重做**：更新从「一个检查更新按钮」扩展成完整的分组结构——顶部身份卡保留 logo、版本、短语与检查入口，版本号在预发布时标注「预发布」；查到新版本后，详情面板就在检查按钮正下方展开，版本号、体积、发布日期、发行说明按顺序排布，发行说明超出六行折成省略号（要全文去发布页）。通道与下载源用与设置页一致的分段控件，测速结果用小条形图并排对比。
+- **版本 1.5.0-beta1**：全平台（Tauri / Android / 前端）版本号同步至 1.5.0-beta1，Android versionCode 10。桌面端新增 `reqwest` 依赖（`native-tls` + 系统代理），用于原生下载与测速。
+
+### Removed
+
+- **Release 不再产出 DMG**：macOS 产物改为 `.app` 压缩包，与 Windows、安卓统一成「解压即用」，也省掉 DMG 那一步的挂载与签名开销。
+
+[1.5.0-beta1]: https://github.com/MogroWangStudio/Collecout/compare/v1.4.0...v1.5.0-beta1
+
 ## [1.4.0] - 2026-10-27
 
 ### Added

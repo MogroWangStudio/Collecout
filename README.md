@@ -30,6 +30,7 @@
 - **窗口状态记忆**：桌面端记住上次关闭时的窗口位置与大小，下次启动自动恢复
 - **界面字体**：跟随系统 / 宋体（衬线）/ 楷体 / 等宽四个预设，或输入任意字体名自定义，设置页实时预览
 - **界面字号**：85%–130% 滑块调节全局文字大小，自绘滑块（品牌绿填充轨道 + 描边圆钮）拖动即时生效、松手保存，大字号下不破版
+- **应用内更新**：关于页可检查更新，并选择更新通道（稳定版只收正式发布，测试版连 Pre-Release 一起收）与下载源（Github Raw 直连 / Github-proxy 加速）；两个源一键测速，按当前版本的安装包实测、结果并排对比；查到新版本后可自行决定是否下载，下载过程有进度、速度与取消，完成后 5 秒读秒自动重启安装，读秒期间可随时取消；Windows 由助手进程等程序退出后覆盖 `Collecout.exe` 并重启，macOS 解包覆盖 `.app` 后重开，安卓交给系统浏览器安装
 - **本地存储**：所有数据以「文件夹 + JSON」存在本地 `collecout-data` 文件夹，源文件与图片副本一并随库存档；不联网、不上传
 - **数据位置自定义**：首次启动的欢迎向导可将数据文件夹指到任意位置（默认跟随软件），也能检测并原样读取旧版本留下的现有数据；之后随时更改，单个库还可独立存放到你指定的目录
 - **启动界面**：白底居中 logo，以非线性曲线淡入、数据就绪后退场（桌面与移动端一致）；设置页「启动动画」可选四种退场预设（放大淡出 / 缩小淡出 / 向上滑出 / 直接淡出），0.6–3 秒滑块调节最短展示时长，「预览动画」按钮按当前设置完整播放一遍，无需重启；与安卓启动画面同底色衔接，无白屏跳变，安卓 12+ 系统自带的启动屏大图标已抑制，全程没有原生启动界面感
@@ -92,17 +93,32 @@ npx cap open android
 - 自 0.7.0 起，向导还会**探测旧版本留下的现有数据**（AppData、家目录等兜底位置），检测到时提供「读取现有数据」选项，原样接回、不移动文件；「选择其他文件夹」也接受一个已有的萃序数据文件夹。
 - **单个库可以独立于数据文件夹存放**：新建库时选择「选择其他文件夹」，库文件夹（含 `library.json` 与附件）直接落到你指定的目录；库页面可随时移动位置。外部库通过数据文件夹内的 `libraries/index.json` 登记，所在磁盘未挂载时该库自动隐藏。
 
-## 持续构建
+## 发布与更新
 
-推送或 PR 时，GitHub Actions（`.github/workflows/build.yml`）会自动构建三个产物并上传到 Actions Artifacts：
+发布由 `.github/workflows/release.yml` 承担，推送到 `main` 后自动跑三步；版本号没变时第一步就会结束，不会每次推送都重复构建：
 
-| 产物 | 运行器 | 说明 |
-| --- | --- | --- |
-| Windows x64 便携版 | `windows-latest` | 单文件 exe，免安装，系统需带 WebView2 运行时（Win10/11 默认自带） |
-| macOS arm64 DMG | `macos-latest` | 未做公证，首次打开需右键 → 打开，或 `xattr -cr /Applications/Collecout.app` |
-| 安卓 APK | `ubuntu-latest` | release 签名；未配置证书时自动退回 debug 签名，可直接安装 |
+1. **检查版本**：读 `package.json` 的版本号，必须是 `x.y.z` 或 `x.y.z-betaN`，否则直接失败；
+2. **定 tag 与 Release**：版本号前加 `v` 作为 tag，先建**草稿** Release（草稿不会出现在 GitHub 的「最新版本」接口里，构建没跑完时用户端查不到半个版本）；
+3. **构建并公开**：Windows / macOS / 安卓三端各自构建、打包、上传，三份资产都到齐才把草稿转为公开。
 
-安卓正式签名（可选）：在仓库 Secrets 里配置 `ANDROID_KEYSTORE_BASE64`（keystore 文件的 base64）、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEYSTORE_ALIAS` 三项即可。
+版本号决定发布形态，也决定哪些人收得到：
+
+| 版本号 | tag | 发布形态 | 谁能收到 |
+| --- | --- | --- | --- |
+| `1.5.0` | `v1.5.0` | Release | 稳定通道与测试通道 |
+| `1.5.0-beta1` | `v1.5.0-beta1` | Pre-Release | 只有测试通道 |
+
+三个产物按 `Collecout-<版本>-<平台>-<架构>.zip` 命名——应用内的检查更新就是按这个名字找资产的：
+
+| 压缩包 | 包内内容 |
+| --- | --- |
+| `Collecout-1.5.0-beta1-windows-x64.zip` | 只有 `Collecout.exe`（免安装单文件，需系统自带 WebView2） |
+| `Collecout-1.5.0-beta1-macos-arm64.zip` | `Collecout.app` + `解锁并打开.command` |
+| `Collecout-1.5.0-beta1-android-universal.zip` | 只有 `Collecout.apk` |
+
+macOS 包没有做 Apple 公证，解压后先双击「解锁并打开.command」（等价于 `xattr -cr Collecout.app`）再启动，否则会被系统以「无法验证开发者」拦下。
+
+安卓正式签名（可选）：在仓库 Secrets 里配置 `ANDROID_KEYSTORE_BASE64`（keystore 文件的 base64）、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEYSTORE_ALIAS` 三项即可；未配置时退回 debug 签名，可直接安装。
 
 ## 目录结构
 
@@ -121,7 +137,7 @@ npx cap open android
 │  └─ locales/         # 界面文案集中管理
 ├─ src-tauri/          # Tauri 2 桌面壳
 ├─ android/            # Capacitor 安卓工程
-├─ scripts/            # 图标生成（纯 Node SVG 光栅化管线）与示例文件生成
+├─ scripts/            # 图标生成（纯 Node SVG 光栅化管线）、示例文件生成、macOS 解锁命令
 └─ samples/            # 演示与测试用示例文件
 ```
 
@@ -144,6 +160,7 @@ npx cap open android
 - [x] 1.2：侧边栏收起按钮与折叠把手统一锚定左下角（同心接替、位置不跳变）、把手沿收起方向同路径进出
 - [x] 1.3：嵌入单元格图片逐格对应（metadata → rdrichvalue → richValueRel 引用链修复）、图片放大预览统一为一个组件（方向性长出、Esc 与焦点归还、卡片视图图片也可放大）
 - [x] 1.4：启动动画四预设与时长设置（含预览播放）、安卓 12+ 系统启动屏去图标化、安卓应用名改为 Collecout
+- [x] 1.5：应用内更新（更新通道、双下载源与测速、下载后读秒重启）、Release 工作流三步骤与三平台压缩包命名规范
 - [ ] LLM 提取接口（用户自备 OpenAI 兼容 API，语义化字段抽取）
 - [ ] 条目间引用
 - [ ] iOS 端（需完整 Xcode 环境）

@@ -3,15 +3,18 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useLibrariesStore } from './stores/libraries'
 import { useUiStore } from './stores/ui'
+import { useUpdateStore } from './stores/update'
 import { t } from './locales/strings'
 import { isDesktop, isMobileLayout, platform } from './lib/platform'
 import { applySafeAreaInsets } from './lib/native'
 import AppIcon from './components/AppIcon.vue'
+import AppModal from './components/AppModal.vue'
 import ToastHost from './components/ToastHost.vue'
 
 const route = useRoute()
 const libraries = useLibrariesStore()
 const ui = useUiStore()
+const update = useUpdateStore()
 
 const mobile = ref(isMobileLayout())
 const mq = window.matchMedia('(max-width: 860px)')
@@ -207,6 +210,20 @@ async function closeWindow() {
         </nav>
       </div>
     </template>
+
+    <!-- 更新读秒：常驻在最外层，用户切到任何页面都能看到并取消自动安装 -->
+    <AppModal :open="update.countdown > 0" @close="update.cancelCountdown()">
+      <div class="countdown">
+        <p class="count-num">{{ update.countdown }}</p>
+        <h2 class="count-title">{{ t.about.countdownTitle }}</h2>
+        <p class="hint count-note">{{ t.about.countdownBody(update.release?.version ?? '') }}</p>
+      </div>
+      <footer class="modal-foot">
+        <span class="foot-spacer" />
+        <button class="btn" @click="update.cancelCountdown()">{{ t.about.countdownCancel }}</button>
+        <button class="btn btn-primary" @click="update.install()">{{ t.about.restartNow }}</button>
+      </footer>
+    </AppModal>
 
     <ToastHost />
   </div>
@@ -618,5 +635,35 @@ async function closeWindow() {
 
 .tab-item.on {
   color: var(--accent);
+}
+
+/* ---------- 更新读秒弹窗 ---------- */
+.countdown {
+  padding: 26px 24px 6px;
+  text-align: center;
+}
+
+.count-num {
+  font-size: 5.2rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.count-title {
+  font-size: 1.7rem;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.count-note {
+  margin-top: 8px;
+  max-width: 340px;
+  margin-inline: auto;
+}
+
+.foot-spacer {
+  flex: 1;
 }
 </style>

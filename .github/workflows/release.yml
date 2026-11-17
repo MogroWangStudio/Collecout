@@ -32,6 +32,7 @@ jobs:
       version: ${{ steps.read.outputs.version }}
       tag: ${{ steps.read.outputs.tag }}
       publish: ${{ steps.read.outputs.publish }}
+      draft-exists: ${{ steps.read.outputs.draft-exists }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,14 +53,16 @@ jobs:
           TAG="v$VERSION"
           STATE=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null || echo missing)
 
+          DRAFT_EXISTS=false
           if [ "$STATE" = "false" ]; then
             echo "::notice::$TAG 已经发布过，本次不重复构建"
             PUBLISH=false
           else
-            # 上次只建了草稿（构建失败/中断）：删掉重建，否则 tag 被占着又永远发不出去
             if [ "$STATE" = "true" ]; then
-              echo "::warning::$TAG 存在未完成的草稿，删除后重建"
-              gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+              # 上次构建中断留下的草稿：直接沿用，缺的资产由本轮补齐。
+              # 这里不要去删草稿——草稿在发布前没有 tag 引用，--cleanup-tag 会因找不到 tag 而失败。
+              echo "::warning::$TAG 存在未完成的草稿，本轮复用并补齐资产"
+              DRAFT_EXISTS=true
             fi
             PUBLISH=true
           fi
@@ -68,6 +71,7 @@ jobs:
             echo "version=$VERSION"
             echo "tag=$TAG"
             echo "publish=$PUBLISH"
+            echo "draft-exists=$DRAFT_EXISTS"
           } >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
@@ -83,27 +87,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 创建草稿发布
+      - name: 创建或复用草稿发布
         id: create
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.version.outputs.version }}
           TAG: ${{ needs.version.outputs.tag }}
+          DRAFT_EXISTS: ${{ needs.version.outputs.draft-exists }}
         run: |
           set -euo pipefail
-          NOTES=$(awk -v ver="$VERSION" '
-            index($0, "## [" ver "]") == 1 { inside = 1; next }
-            inside && index($0, "## [") == 1 { exit }
-            inside && /^\[[^]]+\]:/ { next }
-            inside { print }
-          ' CHANGELOG.md)
-
-          if [ -n "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]; then
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "Collecout $VERSION" --draft --notes "$NOTES"
+          if [ "$DRAFT_EXISTS" = "true" ]; then
+            echo "::notice::复用已有草稿 $TAG，缺少的资产由本轮构建补齐"
           else
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "Collecout $VERSION" --draft --generate-notes
+            NOTES=$(awk -v ver="$VERSION" '
+              index($0, "## [" ver "]") == 1 { inside = 1; next }
+              inside && index($0, "## [") == 1 { exit }
+              inside && /^\[[^]]+\]:/ { next }
+              inside { print }
+            ' CHANGELOG.md)
+
+            if [ -n "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]; then
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+                --title "Collecout $VERSION" --draft --notes "$NOTES"
+            else
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+                --title "Collecout $VERSION" --draft --generate-notes
+            fi
           fi
 
           echo "release-id=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json databaseId -q .databaseId)" >> "$GITHUB_OUTPUT"

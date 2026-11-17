@@ -7,10 +7,11 @@ name: Release
 # 版本号没变时第一步就会跳过，不会每次推送都重复构建。
 
 on:
+  # 每次推送到 main 都触发：是否真的发版由第一步读版本号决定。
+  # 不按路径过滤——只改文档的推送也要能看到「已是最新版本，跳过」的结论，
+  # 而不是让 Actions 页面看起来像根本没触发。
   push:
     branches: [main]
-    paths-ignore:
-      - "**.md"
   workflow_dispatch:
 
 permissions:

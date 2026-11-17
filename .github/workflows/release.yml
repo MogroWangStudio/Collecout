@@ -206,6 +206,8 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           set -euo pipefail
+          # 包里带中文文件名：固定 UTF-8，日志里才能看到真实名字而不是问号
+          export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
           VERSION="${{ needs.version.outputs.version }}"
           APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Collecout.app"
           [ -d "$APP" ] || { echo "::error::没有找到 $APP"; exit 1; }
@@ -219,7 +221,17 @@ jobs:
           ZIP="$PWD/dist-release/Collecout-${VERSION}-macos-arm64.zip"
           ( cd "$STAGE" && zip -qry "$ZIP" "Collecout.app" "解锁并打开.command" )
 
-          unzip -l "$ZIP" | grep -q "解锁并打开.command" || { echo "::error::解锁命令没有进包"; exit 1; }
+          # 校验靠解包后的文件系统，不比对 unzip 的文本输出：
+          # 非 UTF-8 终端会把中文名转义，grep 中文串注定匹配不到（上一版就栽在这）
+          CHECK=$(mktemp -d)
+          ditto -x -k "$ZIP" "$CHECK"
+          [ -d "$CHECK/Collecout.app" ] || { echo "::error::压缩包里没有 Collecout.app"; ls -la "$CHECK"; exit 1; }
+          CMD_COUNT=$(find "$CHECK" -maxdepth 1 -name '*.command' | wc -l | tr -d ' ')
+          if [ "$CMD_COUNT" != "1" ]; then
+            echo "::error::压缩包里的解锁命令数量为 $CMD_COUNT（应为 1）"
+            ls -la "$CHECK"
+            exit 1
+          fi
 
       # ----- Android：APK -----
       - name: 构建前端并同步安卓工程

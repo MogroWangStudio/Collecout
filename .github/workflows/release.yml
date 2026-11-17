@@ -189,7 +189,7 @@ jobs:
           Compress-Archive -Path (Join-Path $stage "Collecout.exe") -DestinationPath $zip -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip))
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip).Path)
           $names = @($archive.Entries | ForEach-Object { $_.FullName })
           $archive.Dispose()
           if ($names.Count -ne 1 -or $names[0] -ne "Collecout.exe") {

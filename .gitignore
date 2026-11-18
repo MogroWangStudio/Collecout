@@ -20,3 +20,4 @@ android/*.iml
 *.log
 *.local
 .zcode/
+/.workbuddy
